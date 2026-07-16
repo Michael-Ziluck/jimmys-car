@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="SwaggerUI" />
+    <title>SwaggerUI</title>
+    <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui.css" />
+</head>
+<body>
+<div id="swagger-ui"></div>
+<script src="https://unpkg.com/swagger-ui-dist@5.11.0/swagger-ui-bundle.js" crossorigin></script>
+<script>
+    window.onload = async () => {
+        const response = await fetch('/api/spotify/swagger-config');
+        if (!response.ok) {
+            document.getElementById('swagger-ui').textContent = 'Spotify Swagger configuration is unavailable. Check .env.local.';
+            return;
+        }
+
+        const { clientId, clientSecret } = await response.json();
+        window.ui = SwaggerUIBundle({
+            url: 'open-api-schema.yaml',
+            dom_id: '#swagger-ui',
+            oauth2RedirectUrl: `${window.location.origin}/oauth2-redirect.html`,
+        });
+        window.ui.initOAuth({
+            clientId,
+            clientSecret,
+        });
+    };
+</script>
+</body>
+</html>
