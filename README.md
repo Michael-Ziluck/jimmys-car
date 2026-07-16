@@ -1,3 +1,23 @@
+# Jimmy's Car
+
+## Local Spotify setup
+
+1. Copy `.env.example` to `.env.local`.
+2. Create a Spotify app in the [Spotify Developer Dashboard](https://developer.spotify.com/dashboard).
+3. Add `http://127.0.0.1:3000/api/auth/spotify/callback` to the app's Redirect URIs.
+4. Copy the app's client ID and client secret to `.env.local`.
+5. Run `npm run dev`, then open `http://127.0.0.1:3000/spotify`.
+
+The Spotify button always begins sign-in at `127.0.0.1:3000`, matching Spotify's required local callback host even if you are browsing the app at `localhost:3000`.
+
+The first connection only requests basic profile access and does not retain Spotify tokens or modify any playlists.
+
+## Local Swagger UI
+
+Open `http://127.0.0.1:3000/spotify-swagger.html`. It reads the Spotify client ID and secret from the local server and prepopulates Swagger UI's OAuth dialog. Its token exchange is proxied through the local app because Spotify blocks Swagger UI's browser-side exchange via CORS. The local proxy permits cross-origin requests temporarily, and the schema points explicitly to the `127.0.0.1` proxy rather than Spotify's API host. This intentionally exposes the secret to a browser visitor, so use it only locally and rotate the secret before deploying. Add `http://127.0.0.1:3000/oauth2-redirect.html` to the Spotify app's Redirect URIs.
+
+---
+
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
 ## Getting Started
