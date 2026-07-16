@@ -1,65 +1,48 @@
-import Image from "next/image";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <main className="mx-auto flex w-full max-w-5xl flex-1 flex-col px-6 py-16 sm:px-10 sm:py-24">
+      <div className="max-w-3xl">
+        <p className="mb-4 text-sm font-semibold uppercase tracking-[0.22em] text-amber-700">
+          Current week
+        </p>
+        <h1 className="text-5xl font-bold tracking-tight text-stone-950 sm:text-7xl">
+          Jimmy&apos;s Car
+        </h1>
+        <p className="mt-6 max-w-2xl text-lg leading-8 text-stone-600 sm:text-xl">
+          A home for the songs, rankings, and history behind the weekly
+          playlist.
+        </p>
+        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+          <Button asChild className="h-auto rounded-full px-6 py-3 text-base">
+            <Link href="/songs">Search songs</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto rounded-full bg-card px-6 py-3 text-base">
+            <Link href="/admin">Admin preview</Link>
+          </Button>
+          <Button asChild variant="outline" className="h-auto rounded-full bg-card px-6 py-3 text-base">
+            <Link href="/spotify">Connect Spotify</Link>
+          </Button>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      </div>
+
+      <section className="mt-20 grid gap-4 sm:grid-cols-3" aria-label="Current week summary">
+        {[
+          ["Edition", "July 19, 2026"],
+          ["Songs", "10 demo tracks"],
+          ["Status", "Local prototype"],
+        ].map(([label, value]) => (
+          <Card key={label} className="rounded-2xl py-0 shadow-sm">
+            <CardContent className="p-6">
+              <p className="text-sm text-muted-foreground">{label}</p>
+              <p className="mt-2 text-lg font-semibold text-foreground">{value}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </section>
+    </main>
   );
 }
