@@ -4,65 +4,58 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { Song, Tier } from "@/data/songs";
+import type { Tier } from "@/db/types";
+import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
+import { SpotifyLinkDialog } from "./spotify-link-dialog";
 
-const tierStyles: Record<Tier, string> = {
-  S: "bg-rose-100 text-rose-800",
-  A: "bg-orange-100 text-orange-800",
-  B: "bg-amber-100 text-amber-800",
-  C: "bg-lime-100 text-lime-800",
-  D: "bg-sky-100 text-sky-800",
-  F: "bg-violet-100 text-violet-800",
-};
+type SongResult = { id: string; title: string; artistName: string | null; spotifyTrackId: string | null; tier: Tier | null; owner: string | null };
+const tierStyles: Record<Tier, string> = { S: "bg-rose-100 text-rose-800", A: "bg-orange-100 text-orange-800", B: "bg-amber-100 text-amber-800", C: "bg-lime-100 text-lime-800", D: "bg-sky-100 text-sky-800", F: "bg-violet-100 text-violet-800" };
 
-export function SongSearch({ songs }: { songs: Song[] }) {
+export function SongSearch({ songs, scopeLabel }: { songs: SongResult[]; scopeLabel: string }) {
   const [query, setQuery] = useState("");
-  const filteredSongs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    if (!normalizedQuery) return songs;
-    return songs.filter((song) =>
-      [song.title, song.artist, song.submittedBy].some((value) =>
-        value.toLowerCase().includes(normalizedQuery),
-      ),
-    );
-  }, [query, songs]);
-
-  return (
-    <>
-      <label htmlFor="song-search" className="sr-only">Search by song, artist, or participant</label>
-      <Input
-        id="song-search"
-        type="search"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search by song, artist, or participant…"
-        className="mt-8 h-14 rounded-2xl bg-card px-5 text-base shadow-sm focus-visible:border-amber-700 focus-visible:ring-amber-200"
-      />
-      <p className="mt-4 text-sm text-stone-500" aria-live="polite">
-        Showing {filteredSongs.length} of {songs.length} demo songs
-      </p>
-      <Card className="mt-4 overflow-hidden rounded-2xl py-0 shadow-sm">
-        <CardContent className="p-0">
-        {filteredSongs.length ? (
-          <ul className="divide-y divide-stone-100">
-            {filteredSongs.map((song) => (
-              <li key={song.id} className="flex items-center gap-4 p-5 sm:px-6">
-                <Badge className={`flex h-10 w-10 shrink-0 justify-center rounded-xl text-sm font-bold ${tierStyles[song.currentTier]}`}>
-                  {song.currentTier}
-                </Badge>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold text-stone-950">{song.title}</p>
-                  <p className="truncate text-sm text-stone-500">{song.artist}</p>
-                </div>
-                <p className="hidden text-sm text-stone-500 sm:block">Added by {song.submittedBy}</p>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <p className="p-8 text-center text-muted-foreground">No demo songs match that search.</p>
-        )}
-        </CardContent>
-      </Card>
-    </>
-  );
+  const results = useMemo(() => songs.filter((song) => [song.title, song.artistName ?? "", song.owner ?? ""].some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))), [query, songs]);
+  return <>
+    <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search song title or participant…" className="mt-8 h-14 rounded-2xl bg-card px-5 text-base" />
+    <p className="mt-4 text-sm text-stone-500">Showing {results.length} of {songs.length} {scopeLabel}</p>
+    <Card className="mt-4 overflow-hidden rounded-2xl py-0">
+      <CardContent className="p-0">
+        <ul className="divide-y divide-stone-100">
+          {results.map((song) => (
+            <li key={song.id} className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:px-6">
+              {song.tier ? (
+                <span
+                  className="group relative shrink-0"
+                  title={song.owner ?? `${song.tier} tier`}
+                  aria-label={song.owner ? `Owner: ${song.owner}; ${song.tier} tier` : `${song.tier} tier`}
+                  tabIndex={song.owner ? 0 : undefined}
+                >
+                  <Badge className={`flex h-10 w-10 justify-center rounded-xl text-sm font-bold ${tierStyles[song.tier]}`}>
+                    {song.tier}
+                  </Badge>
+                  {song.owner ? (
+                    <span className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden -translate-x-1/2 whitespace-nowrap rounded-md bg-stone-950 px-2 py-1 text-xs font-medium text-white group-hover:block group-focus:block">
+                      {song.owner}
+                    </span>
+                  ) : null}
+                </span>
+              ) : (
+                <Badge variant="outline" className="flex h-10 w-10 shrink-0 justify-center rounded-xl text-xs">Past</Badge>
+              )}
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold text-stone-950">{song.title}</p>
+                <p className="truncate text-sm text-stone-500">
+                  {song.artistName ?? (song.owner ? `Currently held by ${song.owner}` : "Historical title")}
+                </p>
+              </div>
+              {song.spotifyTrackId ? (
+                <SpotifyEmbedDialog trackId={song.spotifyTrackId} songTitle={song.title} />
+              ) : (
+                <SpotifyLinkDialog songId={song.id} title={song.title} />
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  </>;
 }
