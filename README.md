@@ -62,6 +62,27 @@ npm run build
 
 The application OAuth test currently reads a basic Spotify profile only. It does not persist tokens or make playlist changes.
 
+## Database
+
+The application uses Neon Postgres with Drizzle ORM. Vercel's Neon integration provides `DATABASE_URL` for Development, Preview, and Production. To load its Development values locally, run:
+
+```bash
+npx vercel env pull .env.local
+npm run db:check
+```
+
+`DATABASE_URL` uses Neon's pooled connection endpoint for application queries. Drizzle migrations are configured in `drizzle.config.ts`; table definitions live in `src/db/schema.ts`.
+
+The [rules reference](docs/rules.md) is the concrete product specification for the weekly workflow. After applying migrations, import the four supplied historical workbooks with:
+
+```bash
+npm run db:import-history
+```
+
+The importer downloads the public workbooks, preserves every dated worksheet snapshot, and selects the newest source when historical workbooks overlap on the same date.
+
+The importer also attempts to resolve songs in the latest edition against the current Jimmy's Car Spotify playlist. Spotify now limits playlist-item reads to the playlist owner or a collaborator, so set `SPOTIFY_REFRESH_TOKEN` to a user refresh token from one of those accounts. Matches are exact and title-normalized; duplicate or ambiguous playlist titles are left unresolved for review.
+
 ## Local Swagger UI
 
 Open `http://127.0.0.1:3000/spotify-swagger.html` to use the local Spotify Web API reference. It prepopulates the OAuth client ID and secret from `.env.local` and routes token requests through a temporary local proxy to avoid browser CORS restrictions.
