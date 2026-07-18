@@ -1,3 +1,3 @@
 # TODO
 
-- Add to preferences page the ability to switch between tiles and list.
+- Add a leaderboard page where people can see their current points based on their songs on the active playlist.
