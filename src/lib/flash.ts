@@ -28,7 +28,10 @@ export function readFlash(value: string | undefined): FlashMessage | null {
   if (!value) return null;
   try {
     const parsed: FlashMessage = JSON.parse(value) as FlashMessage;
-    return (parsed.kind === "success" || parsed.kind === "error") && typeof parsed.message === "string" ? parsed : null;
+    return (parsed.kind === "success" || parsed.kind === "error") &&
+      typeof parsed.message === "string"
+      ? parsed
+      : null;
   } catch {
     return { kind: "error", message: value };
   }
