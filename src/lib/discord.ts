@@ -1,19 +1,12 @@
 import "server-only";
 
+import type {
+  DiscordConfig,
+  DiscordProfile,
+  DiscordTokenResponse,
+} from "@/types";
+
 const DISCORD_API: string = "https://discord.com/api/v10";
-
-type DiscordConfig = {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-};
-
-export type DiscordProfile = {
-  id: string;
-  username: string;
-  global_name: string | null;
-  avatar: string | null;
-};
 
 function getDiscordConfig(): DiscordConfig {
   const { DISCORD_CLIENT_ID, DISCORD_CLIENT_SECRET, DISCORD_REDIRECT_URI } =
@@ -49,7 +42,7 @@ export function getDiscordRedirectUri(): string {
 
 export async function exchangeDiscordCode(
   code: string,
-): Promise<{ access_token: string }> {
+): Promise<DiscordTokenResponse> {
   const { clientId, clientSecret, redirectUri } = getDiscordConfig();
   const response: Response = await fetch(`${DISCORD_API}/oauth2/token`, {
     method: "POST",
@@ -65,7 +58,7 @@ export async function exchangeDiscordCode(
   });
   if (!response.ok)
     throw new Error(`Discord token exchange failed (${response.status}).`);
-  return response.json() as Promise<{ access_token: string }>;
+  return response.json() as Promise<DiscordTokenResponse>;
 }
 
 export async function getDiscordProfile(

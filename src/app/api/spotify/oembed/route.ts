@@ -1,16 +1,15 @@
 import { NextResponse, type NextRequest } from "next/server";
+import type {
+  ApiError,
+  SpotifyEmbedResponse,
+  SpotifyOEmbedData,
+} from "@/types";
 
 const spotifyTrackIdPattern: RegExp = /^[A-Za-z0-9]{22}$/;
 
-export async function GET(request: NextRequest): Promise<
-  | NextResponse<{ error: string }>
-  | NextResponse<{
-      src: string;
-      title: string;
-      height: number;
-      spotifyUrl: string;
-    }>
-> {
+export async function GET(
+  request: NextRequest,
+): Promise<NextResponse<ApiError> | NextResponse<SpotifyEmbedResponse>> {
   const trackId: string = request.nextUrl.searchParams.get("trackId") ?? "";
   if (!spotifyTrackIdPattern.test(trackId)) {
     return NextResponse.json(
@@ -31,12 +30,7 @@ export async function GET(request: NextRequest): Promise<
     );
   }
 
-  const data: { html?: string; title?: string; height?: number } =
-    (await response.json()) as {
-      html?: string;
-      title?: string;
-      height?: number;
-    };
+  const data: SpotifyOEmbedData = (await response.json()) as SpotifyOEmbedData;
   const source: string | undefined = data.html
     ?.match(/\ssrc="([^"]+)"/)?.[1]
     ?.replaceAll("&amp;", "&");

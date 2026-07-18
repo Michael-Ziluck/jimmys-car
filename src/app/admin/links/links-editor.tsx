@@ -6,11 +6,9 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import type { EditableLink, ExtraLink, LinksEditorProps } from "@/types";
 
-type ExtraLink = { label: string; url: string };
-type EditableLink = ExtraLink & { id: string };
-
-export function LinksEditor({ extraLinks }: { extraLinks: Array<ExtraLink> }) {
+export function LinksEditor({ extraLinks }: LinksEditorProps) {
   const [links, setLinks] = useState<Array<EditableLink>>(() =>
     extraLinks.map((link, index) => ({
       ...link,

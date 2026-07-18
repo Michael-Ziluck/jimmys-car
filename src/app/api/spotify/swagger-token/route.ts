@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
+import type { CorsHeaders } from "@/types";
 
 const spotifyTokenUrl: string = "https://accounts.spotify.com/api/token";
-const corsHeaders: {
-  "Access-Control-Allow-Origin": string;
-  "Access-Control-Allow-Methods": string;
-  "Access-Control-Allow-Headers": string;
-} = {
+const corsHeaders: CorsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":

@@ -1,11 +1,4 @@
-type HistoricalSheetSource = {
-  id: string;
-  title: string;
-  latestEditionDate: string;
-  latestExpectedTierCounts?: Record<"S" | "A" | "B" | "C" | "D" | "F", number>;
-  priority: 1 | 2 | 3 | 4;
-  latestSheetGid?: string;
-};
+import type { HistoricalSheetSource } from "@/types";
 
 export const HISTORICAL_SHEET_SOURCES: readonly HistoricalSheetSource[] = [
   {

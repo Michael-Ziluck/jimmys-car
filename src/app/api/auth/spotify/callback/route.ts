@@ -11,6 +11,7 @@ import {
   getSpotifyRedirectUri,
 } from "@/lib/spotify";
 import { setErrorFlash, setSuccessFlash } from "@/lib/flash";
+import type { AppUser, SpotifyProfile, SpotifyTokenResponse } from "@/types";
 import { stateCookieName } from "../route";
 
 export async function GET(request: Request): Promise<NextResponse<unknown>> {
@@ -40,29 +41,15 @@ export async function GET(request: Request): Promise<NextResponse<unknown>> {
   }
 
   try {
-    const user: {
-      id: string;
-      discordId: string;
-      discordUsername: string;
-      discordDisplayName: string | null;
-      discordAvatar: string | null;
-      spotifyAccountId: string | null;
-      spotifyDisplayName: string | null;
-      spotifyImageUrl: string | null;
-      claimedParticipantId: string | null;
-      createdAt: Date;
-      updatedAt: Date;
-    } | null = await getCurrentUser();
+    const user: AppUser | null = await getCurrentUser();
     if (!user) {
       const response: NextResponse<unknown> = NextResponse.redirect(accountUrl);
       response.cookies.delete(stateCookieName);
       setErrorFlash(response, "Sign in with Discord before linking Spotify.");
       return response;
     }
-    const token: Awaited<ReturnType<typeof exchangeSpotifyCode>> =
-      await exchangeSpotifyCode(code);
-    const profile: Awaited<ReturnType<typeof getSpotifyProfile>> =
-      await getSpotifyProfile(token.access_token);
+    const token: SpotifyTokenResponse = await exchangeSpotifyCode(code);
+    const profile: SpotifyProfile = await getSpotifyProfile(token.access_token);
     const spotifyAccountId: string = profile.account_id ?? profile.id;
     const [linkedUser] = await getDb()
       .select({ id: appUsers.id })

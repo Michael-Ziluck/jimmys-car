@@ -14,18 +14,12 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { storeSongView } from "@/app/songs/song-view-toggle";
-
-type AccountData = {
-  user: {
-    discordUsername: string;
-    discordDisplayName: string | null;
-    spotifyAccountId: string | null;
-    spotifyDisplayName: string | null;
-    songView: "cards" | "list";
-  } | null;
-  claimedParticipant: { displayName: string } | null;
-  claimableParticipants: Array<{ id: string; displayName: string }>;
-};
+import type {
+  AccountData,
+  AccountUpdateRequest,
+  ApiErrorResponse,
+  SongView,
+} from "@/types";
 
 let accountRequest: Promise<AccountData> | null = null;
 
@@ -67,7 +61,7 @@ export default function AccountPage() {
   );
   useEffect(load, [loadKey, load]);
 
-  const update = (body: object, isPreference = false): void => {
+  const update = (body: AccountUpdateRequest, isPreference = false): void => {
     if (isPreference) setSavingPreference(true);
     void fetch("/api/account", {
       method: "PATCH",
@@ -75,15 +69,14 @@ export default function AccountPage() {
       body: JSON.stringify(body),
     })
       .then(async (response) => {
-        const result: { error?: string } = (await response.json()) as {
-          error?: string;
-        };
+        const result: ApiErrorResponse =
+          (await response.json()) as ApiErrorResponse;
         setMessage(
           result.error ?? (response.ok ? "Saved." : "Could not save."),
         );
         if (response.ok) {
           if (isPreference) {
-            const songView: unknown = (body as { songView?: unknown }).songView;
+            const songView: SongView | undefined = body.songView;
             if (songView === "cards" || songView === "list")
               storeSongView(songView);
           }

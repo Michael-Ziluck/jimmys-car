@@ -15,39 +15,17 @@ import {
   weeklyEditions,
 } from "@/db/schema";
 import { HISTORICAL_SHEET_SOURCES } from "@/lib/historical-sheets";
+import type {
+  HistoricalImportAppearance as Appearance,
+  HistoricalImportEdition as Edition,
+  ImportedScoreEntry as ScoreEntry,
+  ImportedSpotifyTrack as SpotifyTrack,
+  ParticipantColumn,
+  ParticipantHeaderColumn,
+  SpotifyPlaylistPage,
+  Tier,
+} from "@/types";
 import { normalizeSongTitle, songTitleMatchKey } from "./song-title-matching";
-
-type Tier = "S" | "A" | "B" | "C" | "D" | "F";
-type Appearance = {
-  songTitle: string;
-  participantName: string;
-  tier: Tier;
-  sourceRowIndex: number;
-  sourceColumnIndex: number;
-};
-type Edition = {
-  id: string;
-  sourceSpreadsheetId: string;
-  sourceTabName: string;
-  sourceTabIndex: number;
-  editionDate: string;
-  isCanonical: boolean;
-  appearances: Appearance[];
-  scores: ScoreEntry[];
-};
-type ScoreEntry = {
-  name: string;
-  points: number;
-  change: number;
-  songs: number;
-  average: number;
-  rank: number;
-};
-type SpotifyTrack = {
-  id: string;
-  name: string;
-  artistName: string;
-};
 
 const TIER_HEADER = /^([SABCDF])\s+Tier\b/i;
 // Google exports slash-containing tab names as digits because Excel forbids `/` in sheet names.
@@ -171,10 +149,10 @@ function parseScoreLedger(rows: unknown[][]): ScoreEntry[] {
         normalize(value).includes(header),
       ),
   );
-  const participantColumns: Array<{ name: string; index: number }> = headerRow
+  const participantColumns: ParticipantColumn[] = headerRow
     .map((value, index) => ({ value, index }))
     .filter(
-      (column): column is { value: string; index: number } =>
+      (column): column is ParticipantHeaderColumn =>
         column.index > 0 &&
         (participantSectionEnd === -1 ||
           column.index < participantSectionEnd) &&
@@ -316,21 +294,8 @@ async function fetchCurrentPlaylist() {
       );
       return [];
     }
-    const page = (await response.json()) as {
-      items: Array<{
-        item?: {
-          id?: string;
-          name?: string;
-          artists?: Array<{ name: string }>;
-        };
-        track?: {
-          id?: string;
-          name?: string;
-          artists?: Array<{ name: string }>;
-        };
-      }>;
-      next: string | null;
-    };
+    const page: SpotifyPlaylistPage =
+      (await response.json()) as SpotifyPlaylistPage;
     for (const entry of page.items) {
       const track = entry.item ?? entry.track;
       if (!track?.id || !track.name) continue;

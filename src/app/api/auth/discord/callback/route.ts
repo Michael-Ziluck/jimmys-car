@@ -8,6 +8,12 @@ import {
   getDiscordRedirectUri,
 } from "@/lib/discord";
 import { setErrorFlash, setSuccessFlash } from "@/lib/flash";
+import type {
+  AppUser,
+  DiscordTokenResponse,
+  SessionCookie,
+  SessionIdentity,
+} from "@/types";
 import { discordStateCookieName } from "../route";
 
 export async function GET(request: Request): Promise<NextResponse> {
@@ -34,19 +40,15 @@ export async function GET(request: Request): Promise<NextResponse> {
     return response;
   }
   try {
-    const token: { access_token: string } = await exchangeDiscordCode(code);
-    const user: Awaited<ReturnType<typeof upsertDiscordUser>> =
-      await upsertDiscordUser(await getDiscordProfile(token.access_token));
-    if (!user) throw new Error("Discord user upsert did not return a user.");
-    const session: { id: string; expiresAt: Date } = await createSession(
-      user.id,
+    const token: DiscordTokenResponse = await exchangeDiscordCode(code);
+    const user: AppUser | undefined = await upsertDiscordUser(
+      await getDiscordProfile(token.access_token),
     );
+    if (!user) throw new Error("Discord user upsert did not return a user.");
+    const session: SessionIdentity = await createSession(user.id);
     const response: NextResponse = NextResponse.redirect(accountUrl);
     response.cookies.delete(discordStateCookieName);
-    const cookie: ReturnType<typeof sessionCookie> = sessionCookie(
-      session.id,
-      session.expiresAt,
-    );
+    const cookie: SessionCookie = sessionCookie(session.id, session.expiresAt);
     response.cookies.set(cookie.name, cookie.value, cookie.options);
     setSuccessFlash(response, "Discord is connected. Your account is ready.");
     return response;

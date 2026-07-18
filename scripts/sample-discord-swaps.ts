@@ -1,13 +1,5 @@
 import { loadEnvConfig } from "@next/env";
-
-type DiscordMessage = {
-  id: string;
-  content: string;
-  timestamp: string;
-  author?: { username?: string };
-  attachments?: Array<{ url?: string }>;
-  embeds?: Array<{ url?: string; description?: string; title?: string }>;
-};
+import type { DiscordMessage, DiscordRateLimitResponse } from "@/types";
 
 const CHANNEL_ID: string = "846835164159541298";
 const DISCORD_API: string = `https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`;
@@ -49,9 +41,8 @@ async function getDiscordPage(url: URL, token: string): Promise<Response> {
     });
     if (response.status !== 429) return response;
 
-    const limit: { retry_after?: number } = (await response.json()) as {
-      retry_after?: number;
-    };
+    const limit: DiscordRateLimitResponse =
+      (await response.json()) as DiscordRateLimitResponse;
     await wait(Math.ceil((limit.retry_after ?? 1) * 1000) + 100);
   }
 }

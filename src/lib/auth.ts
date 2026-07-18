@@ -7,17 +7,20 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { appUsers, userSessions } from "@/db/schema";
-import type { DiscordProfile } from "@/lib/discord";
+import type {
+  AppUser,
+  DiscordProfile,
+  SessionCookie,
+  SessionIdentity,
+} from "@/types";
 import { discordAvatarUrl } from "@/lib/discord";
-
-export type CurrentUser = typeof appUsers.$inferSelect;
 
 export const sessionCookieName: string = "jimmys_car_session";
 const sessionDurationMs: number = 30 * 24 * 60 * 60 * 1000;
 
 export async function upsertDiscordUser(
   profile: DiscordProfile,
-): Promise<CurrentUser | undefined> {
+): Promise<AppUser | undefined> {
   const db: ReturnType<typeof getDb> = getDb();
   const [user] = await db
     .insert(appUsers)
@@ -42,17 +45,14 @@ export async function upsertDiscordUser(
   return user;
 }
 
-export async function createSession(userId: string): Promise<{
-  id: `${string}-${string}-${string}-${string}-${string}`;
-  expiresAt: Date;
-}> {
+export async function createSession(userId: string): Promise<SessionIdentity> {
   const id: `${string}-${string}-${string}-${string}-${string}` = randomUUID();
   const expiresAt: Date = new Date(Date.now() + sessionDurationMs);
   await getDb().insert(userSessions).values({ id, userId, expiresAt });
   return { id, expiresAt };
 }
 
-export async function getCurrentUser(): Promise<CurrentUser | null> {
+export async function getCurrentUser(): Promise<AppUser | null> {
   const sessionId: string | undefined = (await cookies()).get(
     sessionCookieName,
   )?.value;
@@ -72,20 +72,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return result?.user ?? null;
 }
 
-export function sessionCookie(
-  value: string,
-  expiresAt: Date,
-): {
-  name: string;
-  value: string;
-  options: {
-    httpOnly: boolean;
-    sameSite: "lax";
-    secure: boolean;
-    expires: Date;
-    path: string;
-  };
-} {
+export function sessionCookie(value: string, expiresAt: Date): SessionCookie {
   return {
     name: sessionCookieName,
     value,

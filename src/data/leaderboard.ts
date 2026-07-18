@@ -9,25 +9,17 @@ import {
   songAppearances,
   weeklyEditions,
 } from "@/db/schema";
+import type {
+  EditionIdentity,
+  Leaderboard,
+  LeaderboardEntry,
+  LeaderboardParticipant,
+  ParticipantScore,
+  ScoredAppearance,
+} from "@/types";
 
 const TIER_POINTS: Readonly<Record<"S" | "A" | "B" | "C" | "D" | "F", number>> =
   { S: 4, A: 2, B: 1, C: 0, D: -1, F: -3 };
-
-export type LeaderboardEntry = {
-  participantId: string;
-  name: string;
-  points: number;
-  change: number;
-  songs: number;
-  average: number;
-  rank: number;
-};
-
-export type Leaderboard = {
-  editionDate: string;
-  previousEditionDate: string | null;
-  entries: Array<LeaderboardEntry>;
-};
 
 function parseStoredLeaderboard(value: string): Leaderboard | null {
   try {
@@ -64,22 +56,17 @@ function parseStoredLeaderboard(value: string): Leaderboard | null {
   }
 }
 
-type ScoredAppearance = {
-  editionId: string;
-  participantId: string;
-  tier: keyof typeof TIER_POINTS;
-};
-
 function totalsByParticipant(
   appearances: Array<ScoredAppearance>,
   editionId: string,
-): Map<string, { points: number; songs: number }> {
-  const totals: Map<string, { points: number; songs: number }> = new Map();
+): Map<string, ParticipantScore> {
+  const totals: Map<string, ParticipantScore> = new Map();
   for (const appearance of appearances) {
     if (appearance.editionId !== editionId) continue;
-    const current: { points: number; songs: number } = totals.get(
-      appearance.participantId,
-    ) ?? { points: 0, songs: 0 };
+    const current: ParticipantScore = totals.get(appearance.participantId) ?? {
+      points: 0,
+      songs: 0,
+    };
     totals.set(appearance.participantId, {
       points: current.points + TIER_POINTS[appearance.tier],
       songs: current.songs + 1,
@@ -101,16 +88,16 @@ export async function getLeaderboard(): Promise<Leaderboard | null> {
     );
     if (leaderboard) return leaderboard;
   }
-  const editions: Array<{ id: string; editionDate: string }> = await db
+  const editions: EditionIdentity[] = await db
     .select({ id: weeklyEditions.id, editionDate: weeklyEditions.editionDate })
     .from(weeklyEditions)
     .where(eq(weeklyEditions.isCanonical, true))
     .orderBy(desc(weeklyEditions.editionDate))
     .limit(2);
-  const latest: { id: string; editionDate: string } | undefined = editions[0];
+  const latest: EditionIdentity | undefined = editions[0];
   if (!latest) return null;
 
-  const people: Array<{ id: string; name: string }> = await db
+  const people: LeaderboardParticipant[] = await db
     .select({ id: participants.id, name: participants.displayName })
     .from(participants);
   const appearances: Array<ScoredAppearance> = await db
@@ -126,16 +113,20 @@ export async function getLeaderboard(): Promise<Leaderboard | null> {
         editions.map((edition) => edition.id),
       ),
     );
-  const latestTotals: Map<string, { points: number; songs: number }> =
-    totalsByParticipant(appearances, latest.id);
-  const previousTotals: Map<string, { points: number; songs: number }> =
-    editions[1] ? totalsByParticipant(appearances, editions[1].id) : new Map();
+  const latestTotals: Map<string, ParticipantScore> = totalsByParticipant(
+    appearances,
+    latest.id,
+  );
+  const previousTotals: Map<string, ParticipantScore> = editions[1]
+    ? totalsByParticipant(appearances, editions[1].id)
+    : new Map();
 
   const sorted: Array<Omit<LeaderboardEntry, "rank">> = people
     .map((person) => {
-      const current: { points: number; songs: number } = latestTotals.get(
-        person.id,
-      ) ?? { points: 0, songs: 0 };
+      const current: ParticipantScore = latestTotals.get(person.id) ?? {
+        points: 0,
+        songs: 0,
+      };
       const previousPoints: number = previousTotals.get(person.id)?.points ?? 0;
       return {
         participantId: person.id,

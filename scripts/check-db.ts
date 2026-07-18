@@ -1,5 +1,6 @@
 import { loadEnvConfig } from "@next/env";
 import { neon } from "@neondatabase/serverless";
+import type { DatabaseConnectionIdentity } from "@/types";
 
 async function main(): Promise<void> {
   loadEnvConfig(process.cwd());
@@ -13,14 +14,9 @@ async function main(): Promise<void> {
 
   const sql: ReturnType<typeof neon> = neon(databaseUrl);
   const [connection] =
-    (await sql`select current_database() as database, current_user as user`) as {
-      database: string;
-      user: string;
-    }[];
-  const result: { database: string; user: string } = connection as {
-    database: string;
-    user: string;
-  };
+    (await sql`select current_database() as database, current_user as user`) as DatabaseConnectionIdentity[];
+  const result: DatabaseConnectionIdentity =
+    connection as DatabaseConnectionIdentity;
 
   console.log(`Connected to ${result.database} as ${result.user}.`);
 }

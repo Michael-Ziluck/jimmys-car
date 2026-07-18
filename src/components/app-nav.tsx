@@ -4,12 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import type { AppNavigationLink, AppNavProps } from "@/types";
 
-const links: Array<{
-  href: string;
-  label: string;
-  match: (pathname: string) => boolean;
-}> = [
+const links: AppNavigationLink[] = [
   {
     href: "/songs",
     label: "Songs",
@@ -37,7 +34,7 @@ const links: Array<{
   },
 ];
 
-export function AppNav({ isAdmin }: { isAdmin: boolean }) {
+export function AppNav({ isAdmin }: AppNavProps) {
   const pathname: string = usePathname();
 
   return (

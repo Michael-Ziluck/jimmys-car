@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
+import type { ExtraLink } from "@/types";
 
 export default async function LinksPage() {
   const links: Map<string, string> = new Map(
@@ -18,11 +19,11 @@ export default async function LinksPage() {
       setting.value,
     ]),
   );
-  let extraLinks: Array<{ label: string; url: string }> = [];
+  let extraLinks: ExtraLink[] = [];
   try {
     const parsed: unknown = JSON.parse(links.get("extra_links") ?? "[]");
     extraLinks = Array.isArray(parsed)
-      ? parsed.filter((item): item is { label: string; url: string } =>
+      ? parsed.filter((item): item is ExtraLink =>
           Boolean(
             item &&
             typeof item.label === "string" &&
