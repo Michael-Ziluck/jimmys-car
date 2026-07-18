@@ -1,9 +1,9 @@
 import "server-only";
 
-const spotifyAccountsUrl = "https://accounts.spotify.com";
-const spotifyApiUrl = "https://api.spotify.com/v1";
+const spotifyAccountsUrl: string = "https://accounts.spotify.com";
+const spotifyApiUrl: string = "https://api.spotify.com/v1";
 
-export const spotifyScopes = ["user-read-private", "user-read-email"];
+export const spotifyScopes: string[] = ["user-read-private", "user-read-email"];
 
 type SpotifyConfig = {
   clientId: string;
@@ -20,6 +20,7 @@ type SpotifyTokenResponse = {
 };
 
 export type SpotifyProfile = {
+  account_id?: string;
   id: string;
   display_name: string | null;
   email?: string;
@@ -39,13 +40,13 @@ function getSpotifyConfig(): SpotifyConfig {
   };
 }
 
-export function getSpotifyRedirectUri() {
+export function getSpotifyRedirectUri(): string {
   return getSpotifyConfig().redirectUri;
 }
 
-export function createSpotifyAuthorizationUrl(state: string) {
+export function createSpotifyAuthorizationUrl(state: string): URL {
   const { clientId, redirectUri } = getSpotifyConfig();
-  const url = new URL(`${spotifyAccountsUrl}/authorize`);
+  const url: URL = new URL(`${spotifyAccountsUrl}/authorize`);
   url.search = new URLSearchParams({
     client_id: clientId,
     response_type: "code",
@@ -58,8 +59,8 @@ export function createSpotifyAuthorizationUrl(state: string) {
 
 export async function exchangeSpotifyCode(code: string): Promise<SpotifyTokenResponse> {
   const { clientId, clientSecret, redirectUri } = getSpotifyConfig();
-  const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
-  const response = await fetch(`${spotifyAccountsUrl}/api/token`, {
+  const credentials: string = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+  const response: Response = await fetch(`${spotifyAccountsUrl}/api/token`, {
     method: "POST",
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -81,7 +82,7 @@ export async function exchangeSpotifyCode(code: string): Promise<SpotifyTokenRes
 }
 
 export async function getSpotifyProfile(accessToken: string): Promise<SpotifyProfile> {
-  const response = await fetch(`${spotifyApiUrl}/me`, {
+  const response: Response = await fetch(`${spotifyApiUrl}/me`, {
     headers: { Authorization: `Bearer ${accessToken}` },
     cache: "no-store",
   });

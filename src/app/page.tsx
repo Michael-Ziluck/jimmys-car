@@ -24,7 +24,7 @@ export default function Home() {
             <Link href="/admin">Admin preview</Link>
           </Button>
           <Button asChild variant="outline" className="h-auto rounded-full bg-card px-6 py-3 text-base">
-            <Link href="/spotify">Connect Spotify</Link>
+            <Link href="/account">Your profile</Link>
           </Button>
         </div>
       </div>
