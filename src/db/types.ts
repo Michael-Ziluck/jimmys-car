@@ -1,5 +1,6 @@
 import type {
   participants,
+  appUsers,
   songAppearances,
   songs,
   sourceSpreadsheets,
@@ -11,6 +12,9 @@ export type Tier = (typeof tier.enumValues)[number];
 
 export type Participant = typeof participants.$inferSelect;
 export type NewParticipant = typeof participants.$inferInsert;
+
+export type AppUser = typeof appUsers.$inferSelect;
+export type NewAppUser = typeof appUsers.$inferInsert;
 
 export type Song = typeof songs.$inferSelect;
 export type NewSong = typeof songs.$inferInsert;
