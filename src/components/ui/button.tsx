@@ -1,8 +1,8 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Slot } from "radix-ui";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/typedef -- cva infers the variant contract consumed below.
 const buttonVariants = cva(
@@ -39,8 +39,8 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 function Button({
   className,
@@ -50,9 +50,15 @@ function Button({
   ...props
 }: React.ComponentProps<"button"> &
   VariantProps<typeof buttonVariants> & {
-    asChild?: boolean
-  }) : React.JSX.Element {
-  const Comp: "button" | React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode; } & React.RefAttributes<HTMLElement>> = asChild ? Slot.Root : "button"
+    asChild?: boolean;
+  }): React.JSX.Element {
+  const Comp:
+    | "button"
+    | React.ForwardRefExoticComponent<
+        React.HTMLAttributes<HTMLElement> & {
+          children?: React.ReactNode;
+        } & React.RefAttributes<HTMLElement>
+      > = asChild ? Slot.Root : "button";
 
   return (
     <Comp
@@ -62,7 +68,7 @@ function Button({
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
     />
-  )
+  );
 }
 
-export { Button, buttonVariants }
+export { Button, buttonVariants };

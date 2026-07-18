@@ -1,8 +1,8 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
-import { Slot } from "radix-ui"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
+import { Slot } from "radix-ui";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 // eslint-disable-next-line @typescript-eslint/typedef -- cva infers the variant contract consumed below.
 const badgeVariants = cva(
@@ -25,8 +25,8 @@ const badgeVariants = cva(
     defaultVariants: {
       variant: "default",
     },
-  }
-)
+  },
+);
 
 function Badge({
   className,
@@ -34,8 +34,16 @@ function Badge({
   asChild = false,
   ...props
 }: React.ComponentProps<"span"> &
-  VariantProps<typeof badgeVariants> & { asChild?: boolean }) : React.JSX.Element {
-  const Comp: React.ForwardRefExoticComponent<React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode; } & React.RefAttributes<HTMLElement>> | "span" = asChild ? Slot.Root : "span"
+  VariantProps<typeof badgeVariants> & {
+    asChild?: boolean;
+  }): React.JSX.Element {
+  const Comp:
+    | React.ForwardRefExoticComponent<
+        React.HTMLAttributes<HTMLElement> & {
+          children?: React.ReactNode;
+        } & React.RefAttributes<HTMLElement>
+      >
+    | "span" = asChild ? Slot.Root : "span";
 
   return (
     <Comp
@@ -44,7 +52,7 @@ function Badge({
       className={cn(badgeVariants({ variant }), className)}
       {...props}
     />
-  )
+  );
 }
 
-export { Badge, badgeVariants }
+export { Badge, badgeVariants };
