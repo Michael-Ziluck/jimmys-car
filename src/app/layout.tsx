@@ -3,11 +3,13 @@ import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
 
+// eslint-disable-next-line @typescript-eslint/typedef -- The loader's inferred type retains the variable field.
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
 });
 
+// eslint-disable-next-line @typescript-eslint/typedef -- The loader's inferred type retains the variable field.
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
@@ -37,7 +39,7 @@ export default function RootLayout({
             <div className="flex gap-5 text-sm font-medium text-stone-600">
               <Link href="/songs" className="transition hover:text-amber-700">Songs</Link>
               <Link href="/admin" className="transition hover:text-amber-700">Admin</Link>
-              <Link href="/spotify" className="transition hover:text-amber-700">Spotify</Link>
+              <Link href="/account" className="transition hover:text-amber-700">Profile</Link>
             </div>
           </nav>
         </header>

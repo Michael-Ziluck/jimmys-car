@@ -11,8 +11,10 @@ import {
   uniqueIndex,
 } from "drizzle-orm/pg-core";
 
+// eslint-disable-next-line @typescript-eslint/typedef -- Drizzle infers the enum tuple from these values.
 export const tier = pgEnum("tier", ["S", "A", "B", "C", "D", "F"]);
 
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const sourceSpreadsheets = pgTable("source_spreadsheets", {
   googleSpreadsheetId: text("google_spreadsheet_id").primaryKey(),
   title: text("title").notNull(),
@@ -21,6 +23,7 @@ export const sourceSpreadsheets = pgTable("source_spreadsheets", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const participants = pgTable(
   "participants",
   {
@@ -34,7 +37,45 @@ export const participants = pgTable(
   (table) => [uniqueIndex("participants_normalized_name_unique").on(table.normalizedName)],
 );
 
+/** A person authenticated through Discord, with optional linked services. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
+export const appUsers = pgTable(
+  "app_users",
+  {
+    id: text("id").primaryKey(),
+    discordId: text("discord_id").notNull(),
+    discordUsername: text("discord_username").notNull(),
+    discordDisplayName: text("discord_display_name"),
+    discordAvatar: text("discord_avatar"),
+    spotifyAccountId: text("spotify_account_id"),
+    spotifyDisplayName: text("spotify_display_name"),
+    spotifyImageUrl: text("spotify_image_url"),
+    claimedParticipantId: text("claimed_participant_id").references(() => participants.id, { onDelete: "restrict" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [
+    uniqueIndex("app_users_discord_id_unique").on(table.discordId),
+    uniqueIndex("app_users_spotify_account_id_unique").on(table.spotifyAccountId),
+    uniqueIndex("app_users_claimed_participant_id_unique").on(table.claimedParticipantId),
+  ],
+);
+
+/** Opaque, short-lived browser sessions. Never put provider tokens in the browser. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
+export const userSessions = pgTable(
+  "user_sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("user_sessions_user_id_index").on(table.userId), index("user_sessions_expires_at_index").on(table.expiresAt)],
+);
+
 /** Historical records initially identify songs by title only. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const songs = pgTable(
   "songs",
   {
@@ -52,6 +93,7 @@ export const songs = pgTable(
 );
 
 /** User-submitted Spotify matches awaiting human review. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const spotifyLinkSuggestions = pgTable(
   "spotify_link_suggestions",
   {
@@ -72,6 +114,7 @@ export const spotifyLinkSuggestions = pgTable(
 );
 
 /** A dated worksheet snapshot; overlapping sources are retained. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const weeklyEditions = pgTable(
   "weekly_editions",
   {
@@ -95,6 +138,7 @@ export const weeklyEditions = pgTable(
 );
 
 /** A song's owner and tier placement in one weekly snapshot. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
 export const songAppearances = pgTable(
   "song_appearances",
   {
