@@ -26,9 +26,9 @@ const initialSpotifySuggestionState: SpotifySuggestionState = {
 };
 
 export function SpotifyLinkDialog({ songId, title }: { songId: string; title: string }) {
-  const action = submitSpotifySuggestion.bind(null, songId);
+  const action: (_previousState: SpotifySuggestionState, formData: FormData) => Promise<SpotifySuggestionState> = submitSpotifySuggestion.bind(null, songId);
   const [state, formAction, pending] = useActionState(action, initialSpotifySuggestionState);
-  const searchUrl = `https://open.spotify.com/search/${encodeURIComponent(title)}`;
+  const searchUrl: string = `https://open.spotify.com/search/${encodeURIComponent(title)}`;
 
   return (
     <Dialog>
