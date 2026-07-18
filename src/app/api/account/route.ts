@@ -5,25 +5,34 @@ import { appUsers, participants } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 
 export async function GET(): Promise<Response> {
-  const user: Awaited<ReturnType<typeof getCurrentUser>> = await getCurrentUser();
+  const user: Awaited<ReturnType<typeof getCurrentUser>> =
+    await getCurrentUser();
   if (!user) return Response.json({ user: null });
 
   const db: ReturnType<typeof getDb> = getDb();
-  const claimedParticipant: Array<{ displayName: string }> = user.claimedParticipantId
-    ? await db
-        .select({ displayName: participants.displayName })
-        .from(participants)
-        .where(eq(participants.id, user.claimedParticipantId))
-        .limit(1)
-    : [];
-  const claimableParticipants: Array<{ id: string; displayName: string }> = user.claimedParticipantId
-    ? []
-    : await db
-        .select({ id: participants.id, displayName: participants.displayName })
-        .from(participants)
-        .leftJoin(appUsers, eq(appUsers.claimedParticipantId, participants.id))
-        .where(isNull(appUsers.id))
-        .orderBy(asc(participants.displayName));
+  const claimedParticipant: Array<{ displayName: string }> =
+    user.claimedParticipantId
+      ? await db
+          .select({ displayName: participants.displayName })
+          .from(participants)
+          .where(eq(participants.id, user.claimedParticipantId))
+          .limit(1)
+      : [];
+  const claimableParticipants: Array<{ id: string; displayName: string }> =
+    user.claimedParticipantId
+      ? []
+      : await db
+          .select({
+            id: participants.id,
+            displayName: participants.displayName,
+          })
+          .from(participants)
+          .leftJoin(
+            appUsers,
+            eq(appUsers.claimedParticipantId, participants.id),
+          )
+          .where(isNull(appUsers.id))
+          .orderBy(asc(participants.displayName));
 
   return Response.json({
     user,
@@ -33,13 +42,16 @@ export async function GET(): Promise<Response> {
 }
 
 export async function PATCH(request: Request): Promise<Response> {
-  const user: Awaited<ReturnType<typeof getCurrentUser>> = await getCurrentUser();
+  const user: Awaited<ReturnType<typeof getCurrentUser>> =
+    await getCurrentUser();
   if (!user)
     return Response.json({ error: "Sign in required." }, { status: 401 });
-  const body: { action?: string; participantId?: string } = (await request.json()) as {
-    action?: string;
-    participantId?: string;
-  };
+  const body: { action?: string; participantId?: string; songView?: string } =
+    (await request.json()) as {
+      action?: string;
+      participantId?: string;
+      songView?: string;
+    };
   const db: ReturnType<typeof getDb> = getDb();
 
   if (body.action === "disconnect-spotify") {
@@ -53,6 +65,16 @@ export async function PATCH(request: Request): Promise<Response> {
       })
       .where(eq(appUsers.id, user.id));
     return Response.json({ ok: true });
+  }
+  if (
+    body.action === "set-song-view" &&
+    (body.songView === "cards" || body.songView === "list")
+  ) {
+    await db
+      .update(appUsers)
+      .set({ songView: body.songView, updatedAt: new Date() })
+      .where(eq(appUsers.id, user.id));
+    return Response.json({ ok: true, songView: body.songView });
   }
   if (
     body.action === "claim" &&

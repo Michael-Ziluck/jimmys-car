@@ -6,7 +6,9 @@ const stateCookieName: string = "spotify_oauth_state";
 
 export async function GET(): Promise<NextResponse> {
   const state: string = randomUUID();
-  const response: NextResponse = NextResponse.redirect(createSpotifyAuthorizationUrl(state));
+  const response: NextResponse = NextResponse.redirect(
+    createSpotifyAuthorizationUrl(state),
+  );
   response.cookies.set(stateCookieName, state, {
     httpOnly: true,
     maxAge: 10 * 60,
