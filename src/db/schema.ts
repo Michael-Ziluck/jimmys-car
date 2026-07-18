@@ -19,8 +19,12 @@ export const sourceSpreadsheets = pgTable("source_spreadsheets", {
   googleSpreadsheetId: text("google_spreadsheet_id").primaryKey(),
   title: text("title").notNull(),
   sourcePriority: integer("source_priority").notNull(),
-  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
 });
 
 // eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
@@ -31,10 +35,18 @@ export const participants = pgTable(
     displayName: text("display_name").notNull(),
     normalizedName: text("normalized_name").notNull(),
     discordUserId: text("discord_user_id"),
+    spotifyAccountId: text("spotify_account_id"),
     columnColor: text("column_color"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
-  (table) => [uniqueIndex("participants_normalized_name_unique").on(table.normalizedName)],
+  (table) => [
+    uniqueIndex("participants_normalized_name_unique").on(table.normalizedName),
+    uniqueIndex("participants_spotify_account_id_unique").on(
+      table.spotifyAccountId,
+    ),
+  ],
 );
 
 /** A person authenticated through Discord, with optional linked services. */
@@ -50,16 +62,39 @@ export const appUsers = pgTable(
     spotifyAccountId: text("spotify_account_id"),
     spotifyDisplayName: text("spotify_display_name"),
     spotifyImageUrl: text("spotify_image_url"),
-    claimedParticipantId: text("claimed_participant_id").references(() => participants.id, { onDelete: "restrict" }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    songView: text("song_view").default("cards").notNull(),
+    role: text("role").default("user").notNull(),
+    claimedParticipantId: text("claimed_participant_id").references(
+      () => participants.id,
+      { onDelete: "restrict" },
+    ),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex("app_users_discord_id_unique").on(table.discordId),
-    uniqueIndex("app_users_spotify_account_id_unique").on(table.spotifyAccountId),
-    uniqueIndex("app_users_claimed_participant_id_unique").on(table.claimedParticipantId),
+    uniqueIndex("app_users_spotify_account_id_unique").on(
+      table.spotifyAccountId,
+    ),
+    uniqueIndex("app_users_claimed_participant_id_unique").on(
+      table.claimedParticipantId,
+    ),
   ],
 );
+
+/** Small editable values shared across the site. */
+// eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
+export const appSettings = pgTable("app_settings", {
+  key: text("key").primaryKey(),
+  value: text("value").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 /** Opaque, short-lived browser sessions. Never put provider tokens in the browser. */
 // eslint-disable-next-line @typescript-eslint/typedef -- Preserve Drizzle's inferred column map.
@@ -67,11 +102,18 @@ export const userSessions = pgTable(
   "user_sessions",
   {
     id: text("id").primaryKey(),
-    userId: text("user_id").notNull().references(() => appUsers.id, { onDelete: "cascade" }),
+    userId: text("user_id")
+      .notNull()
+      .references(() => appUsers.id, { onDelete: "cascade" }),
     expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
-  (table) => [index("user_sessions_user_id_index").on(table.userId), index("user_sessions_expires_at_index").on(table.expiresAt)],
+  (table) => [
+    index("user_sessions_user_id_index").on(table.userId),
+    index("user_sessions_expires_at_index").on(table.expiresAt),
+  ],
 );
 
 /** Historical records initially identify songs by title only. */
@@ -84,7 +126,9 @@ export const songs = pgTable(
     normalizedTitle: text("normalized_title").notNull(),
     artistName: text("artist_name"),
     spotifyTrackId: text("spotify_track_id"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex("songs_normalized_title_unique").on(table.normalizedTitle),
@@ -98,11 +142,15 @@ export const spotifyLinkSuggestions = pgTable(
   "spotify_link_suggestions",
   {
     id: text("id").primaryKey(),
-    songId: text("song_id").notNull().references(() => songs.id, { onDelete: "cascade" }),
+    songId: text("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "cascade" }),
     spotifyTrackId: text("spotify_track_id").notNull(),
     submittedValue: text("submitted_value").notNull(),
     status: text("status").default("pending").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex("spotify_link_suggestions_song_track_unique").on(
@@ -121,12 +169,16 @@ export const weeklyEditions = pgTable(
     id: text("id").primaryKey(),
     sourceSpreadsheetId: text("source_spreadsheet_id")
       .notNull()
-      .references(() => sourceSpreadsheets.googleSpreadsheetId, { onDelete: "cascade" }),
+      .references(() => sourceSpreadsheets.googleSpreadsheetId, {
+        onDelete: "cascade",
+      }),
     sourceTabName: text("source_tab_name").notNull(),
     sourceTabIndex: integer("source_tab_index").notNull(),
     editionDate: date("edition_date", { mode: "string" }).notNull(),
     isCanonical: boolean("is_canonical").default(false).notNull(),
-    importedAt: timestamp("imported_at", { withTimezone: true }).defaultNow().notNull(),
+    importedAt: timestamp("imported_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => [
     uniqueIndex("weekly_editions_source_tab_unique").on(
@@ -145,7 +197,9 @@ export const songAppearances = pgTable(
     weeklyEditionId: text("weekly_edition_id")
       .notNull()
       .references(() => weeklyEditions.id, { onDelete: "cascade" }),
-    songId: text("song_id").notNull().references(() => songs.id, { onDelete: "restrict" }),
+    songId: text("song_id")
+      .notNull()
+      .references(() => songs.id, { onDelete: "restrict" }),
     participantId: text("participant_id")
       .notNull()
       .references(() => participants.id, { onDelete: "restrict" }),
@@ -164,7 +218,10 @@ export const songAppearances = pgTable(
         table.sourceColumnIndex,
       ],
     }),
-    index("song_appearances_song_edition_index").on(table.songId, table.weeklyEditionId),
+    index("song_appearances_song_edition_index").on(
+      table.songId,
+      table.weeklyEditionId,
+    ),
     index("song_appearances_participant_edition_index").on(
       table.participantId,
       table.weeklyEditionId,

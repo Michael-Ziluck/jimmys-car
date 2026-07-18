@@ -22,6 +22,20 @@
       "when": 1784321087145,
       "tag": "0002_marvelous_killmonger",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1784338945058,
+      "tag": "0003_tough_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1784346296679,
+      "tag": "0004_swift_dracula",
+      "breakpoints": true
     }
   ]
 }
