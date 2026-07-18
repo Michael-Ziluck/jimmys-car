@@ -2,11 +2,11 @@ import { randomUUID } from "crypto";
 import { NextResponse } from "next/server";
 import { createSpotifyAuthorizationUrl } from "@/lib/spotify";
 
-const stateCookieName = "spotify_oauth_state";
+const stateCookieName: string = "spotify_oauth_state";
 
-export async function GET() {
-  const state = randomUUID();
-  const response = NextResponse.redirect(createSpotifyAuthorizationUrl(state));
+export async function GET(): Promise<NextResponse> {
+  const state: string = randomUUID();
+  const response: NextResponse = NextResponse.redirect(createSpotifyAuthorizationUrl(state));
   response.cookies.set(stateCookieName, state, {
     httpOnly: true,
     maxAge: 10 * 60,
