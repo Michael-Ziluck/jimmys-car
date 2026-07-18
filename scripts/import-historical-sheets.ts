@@ -2,11 +2,12 @@ import { createHash } from "node:crypto";
 
 import { loadEnvConfig } from "@next/env";
 import { neon } from "@neondatabase/serverless";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/neon-http";
 import * as XLSX from "xlsx";
 
 import {
+  appSettings,
   participants,
   songAppearances,
   songs,
@@ -14,6 +15,7 @@ import {
   weeklyEditions,
 } from "@/db/schema";
 import { HISTORICAL_SHEET_SOURCES } from "@/lib/historical-sheets";
+import { normalizeSongTitle, songTitleMatchKey } from "./song-title-matching";
 
 type Tier = "S" | "A" | "B" | "C" | "D" | "F";
 type Appearance = {
@@ -31,6 +33,15 @@ type Edition = {
   editionDate: string;
   isCanonical: boolean;
   appearances: Appearance[];
+  scores: ScoreEntry[];
+};
+type ScoreEntry = {
+  name: string;
+  points: number;
+  change: number;
+  songs: number;
+  average: number;
+  rank: number;
 };
 type SpotifyTrack = {
   id: string;
@@ -53,11 +64,7 @@ const TIERS: Tier[] = ["S", "A", "B", "C", "D", "F"];
 const CURRENT_PLAYLIST_ID = "5b4hdpNWm9Nu1Y5i7w5eKY";
 
 function normalize(value: string) {
-  return value
-  .trim()
-  .replace(/\s+/g, " ")
-  .replace(/[’‘]/g, "'")
-  .toLocaleLowerCase("en-US");
+  return normalizeSongTitle(value);
 }
 
 function stableId(prefix: string, value: string) {
@@ -102,12 +109,24 @@ function isParticipantHeader(value: unknown): value is string {
 }
 
 function parseWorksheet(rows: unknown[][]): Appearance[] {
-  const participantColumns = (rows[0] ?? [])
-  .map((value, sourceColumnIndex) => ({ value, sourceColumnIndex }))
-  .filter(
-    (column): column is { value: string; sourceColumnIndex: number } =>
-      column.sourceColumnIndex > 0 && isParticipantHeader(column.value),
+  const headerRow: unknown[] = rows[0] ?? [];
+  const participantSectionEnd: number = headerRow.findIndex(
+    (value, index) =>
+      index > 0 &&
+      typeof value === "string" &&
+      NON_PARTICIPANT_HEADERS.some((header) =>
+        normalize(value).includes(header),
+      ),
   );
+  const participantColumns = headerRow
+    .map((value, sourceColumnIndex) => ({ value, sourceColumnIndex }))
+    .filter(
+      (column): column is { value: string; sourceColumnIndex: number } =>
+        column.sourceColumnIndex > 0 &&
+        (participantSectionEnd === -1 ||
+          column.sourceColumnIndex < participantSectionEnd) &&
+        isParticipantHeader(column.value),
+    );
   const appearances: Appearance[] = [];
   let activeTier: Tier | undefined;
 
@@ -140,6 +159,75 @@ function parseWorksheet(rows: unknown[][]): Appearance[] {
     );
   });
   return appearances;
+}
+
+function parseScoreLedger(rows: unknown[][]): ScoreEntry[] {
+  const headerRow: unknown[] = rows[0] ?? [];
+  const participantSectionEnd: number = headerRow.findIndex(
+    (value, index) =>
+      index > 0 &&
+      typeof value === "string" &&
+      NON_PARTICIPANT_HEADERS.some((header) =>
+        normalize(value).includes(header),
+      ),
+  );
+  const participantColumns: Array<{ name: string; index: number }> = headerRow
+    .map((value, index) => ({ value, index }))
+    .filter(
+      (column): column is { value: string; index: number } =>
+        column.index > 0 &&
+        (participantSectionEnd === -1 ||
+          column.index < participantSectionEnd) &&
+        isParticipantHeader(column.value),
+    )
+    .map((column) => ({ name: column.value.trim(), index: column.index }));
+  const rowByLabel = (label: string): unknown[] | undefined =>
+    rows.find((row) => typeof row[0] === "string" && row[0].trim() === label);
+  const pointsRow: unknown[] | undefined = rowByLabel("Points");
+  const changeRow: unknown[] | undefined = rowByLabel("Diff");
+  const songsRow: unknown[] | undefined = rowByLabel("Songs");
+  if (!pointsRow || !changeRow || !songsRow) return [];
+
+  const pickHeaderRowIndex: number = rows.findIndex((row) =>
+    row.some((value) => value === "Pick Order"),
+  );
+  const pickColumnIndex: number =
+    pickHeaderRowIndex === -1
+      ? -1
+      : (rows[pickHeaderRowIndex]?.findIndex(
+          (value) => value === "Pick Order",
+        ) ?? -1);
+  const ranks: Map<string, number> = new Map();
+  if (pickColumnIndex !== -1) {
+    for (const row of rows.slice(pickHeaderRowIndex + 1)) {
+      const rank: number = Number(row[pickColumnIndex]);
+      const label: unknown = row[pickColumnIndex + 1];
+      if (!Number.isFinite(rank) || typeof label !== "string") continue;
+      const name: string = label.split(" [")[0]?.trim() ?? "";
+      if (name) ranks.set(normalize(name), rank);
+    }
+  }
+
+  const scores: ScoreEntry[] = participantColumns.map(({ name, index }) => {
+    const points: number = Number(pointsRow[index]) || 0;
+    const songs: number = Number(songsRow[index]) || 0;
+    return {
+      name,
+      points,
+      change: Number(changeRow[index]) || 0,
+      songs,
+      average: songs ? points / songs : 0,
+      rank: ranks.get(normalize(name)) ?? Number.MAX_SAFE_INTEGER,
+    };
+  });
+  return scores
+    .sort(
+      (left, right) =>
+        left.rank - right.rank ||
+        right.points - left.points ||
+        left.name.localeCompare(right.name),
+    )
+    .map((score, index) => ({ ...score, rank: index + 1 }));
 }
 
 async function fetchWorkbook(spreadsheetId: string) {
@@ -224,7 +312,7 @@ async function fetchCurrentPlaylist() {
     if (!response.ok) {
       console.warn(
         `Skipped Spotify resolution: playlist access returned ${response.status}. ` +
-        "Set SPOTIFY_REFRESH_TOKEN from the playlist owner or a collaborator.",
+          "Set SPOTIFY_REFRESH_TOKEN from the playlist owner or a collaborator.",
       );
       return [];
     }
@@ -261,12 +349,14 @@ async function fetchCurrentPlaylist() {
 function uniqueSpotifyMatches(tracks: SpotifyTrack[]) {
   const grouped = new Map<string, SpotifyTrack[]>();
   for (const track of tracks) {
-    const key = normalize(track.name);
+    const key = songTitleMatchKey(track.name);
     grouped.set(key, [...(grouped.get(key) ?? []), track]);
   }
   return new Map(
     [...grouped].flatMap(([key, matches]) =>
-      matches.length === 1 ? [[key, matches[0]] as const] : [],
+      new Map(matches.map((track) => [track.id, track])).size === 1
+        ? [[key, matches[0]] as const]
+        : [],
     ),
   );
 }
@@ -290,19 +380,23 @@ async function parseAllEditions() {
         sourceTabName === "7/19" && "latestSheetGid" in source
           ? await fetchLiveWorksheet(source.id, source.latestSheetGid)
           : XLSX.utils.sheet_to_json<unknown[]>(
-            workbook.Sheets[exportedTabName] ??
-            (() => {
-              throw new Error(`Missing worksheet ${exportedTabName}.`);
-            })(),
-            {
-              header: 1,
-              defval: "",
-              raw: false,
-            },
-          );
+              workbook.Sheets[exportedTabName] ??
+                (() => {
+                  throw new Error(`Missing worksheet ${exportedTabName}.`);
+                })(),
+              {
+                header: 1,
+                defval: "",
+                raw: false,
+              },
+            );
       const appearances = parseWorksheet(rows);
       const expectedTierCounts = source.latestExpectedTierCounts;
-      if (expectedTierCounts && sourceTabName === tabLabel(new Date(`${source.latestEditionDate}T00:00:00.000Z`))) {
+      if (
+        expectedTierCounts &&
+        sourceTabName ===
+          tabLabel(new Date(`${source.latestEditionDate}T00:00:00.000Z`))
+      ) {
         const actualCounts = tierCounts(appearances);
         const mismatches = TIERS.filter(
           (tier) => actualCounts[tier] !== expectedTierCounts[tier],
@@ -330,6 +424,7 @@ async function parseAllEditions() {
         editionDate: dateString(editionDate),
         isCanonical: false,
         appearances,
+        scores: parseScoreLedger(rows),
       });
     }
   }
@@ -342,8 +437,8 @@ async function parseAllEditions() {
     const current = canonicalByDate.get(edition.editionDate);
     const currentPriority = current
       ? HISTORICAL_SHEET_SOURCES.find(
-        (source) => source.id === current.sourceSpreadsheetId,
-      )!.priority
+          (source) => source.id === current.sourceSpreadsheetId,
+        )!.priority
       : -1;
     if (priority > currentPriority)
       canonicalByDate.set(edition.editionDate, edition);
@@ -369,15 +464,42 @@ async function main() {
   const db = drizzle({ client: neon(databaseUrl) });
   const editions = await parseAllEditions();
   const latestCanonicalEdition = editions
-  .filter((edition) => edition.isCanonical)
-  .sort((left, right) =>
-    right.editionDate.localeCompare(left.editionDate),
-  )[0];
-  const currentTitleKeys = new Set(
+    .filter((edition) => edition.isCanonical)
+    .sort((left, right) =>
+      right.editionDate.localeCompare(left.editionDate),
+    )[0];
+  if (latestCanonicalEdition?.scores.length) {
+    await db
+      .insert(appSettings)
+      .values({
+        key: "leaderboard_data",
+        value: JSON.stringify({
+          editionDate: latestCanonicalEdition.editionDate,
+          entries: latestCanonicalEdition.scores,
+        }),
+        updatedAt: new Date(),
+      })
+      .onConflictDoUpdate({
+        target: appSettings.key,
+        set: {
+          value: JSON.stringify({
+            editionDate: latestCanonicalEdition.editionDate,
+            entries: latestCanonicalEdition.scores,
+          }),
+          updatedAt: new Date(),
+        },
+      });
+  }
+  const currentTitleCounts: Map<string, number> = new Map();
+  const currentTitles: Set<string> = new Set(
     latestCanonicalEdition?.appearances.map((appearance) =>
       normalize(appearance.songTitle),
     ) ?? [],
   );
+  for (const title of currentTitles) {
+    const key: string = songTitleMatchKey(title);
+    currentTitleCounts.set(key, (currentTitleCounts.get(key) ?? 0) + 1);
+  }
   const playlistTracks = await fetchCurrentPlaylist();
   const spotifyMatches = uniqueSpotifyMatches(playlistTracks);
   const allAppearances = editions.flatMap((edition) => edition.appearances);
@@ -400,9 +522,11 @@ async function main() {
     ...new Map(
       allAppearances.map((appearance) => {
         const normalizedTitle = normalize(appearance.songTitle);
-        const spotifyMatch = currentTitleKeys.has(normalizedTitle)
-          ? spotifyMatches.get(normalizedTitle)
-          : undefined;
+        const matchKey: string = songTitleMatchKey(normalizedTitle);
+        const spotifyMatch =
+          currentTitleCounts.get(matchKey) === 1
+            ? spotifyMatches.get(matchKey)
+            : undefined;
         return [
           normalizedTitle,
           {
@@ -419,20 +543,20 @@ async function main() {
 
   for (const source of HISTORICAL_SHEET_SOURCES) {
     await db
-    .insert(sourceSpreadsheets)
-    .values({
-      googleSpreadsheetId: source.id,
-      title: source.title,
-      sourcePriority: source.priority,
-    })
-    .onConflictDoUpdate({
-      target: sourceSpreadsheets.googleSpreadsheetId,
-      set: {
+      .insert(sourceSpreadsheets)
+      .values({
+        googleSpreadsheetId: source.id,
         title: source.title,
         sourcePriority: source.priority,
-        updatedAt: new Date(),
-      },
-    });
+      })
+      .onConflictDoUpdate({
+        target: sourceSpreadsheets.googleSpreadsheetId,
+        set: {
+          title: source.title,
+          sourcePriority: source.priority,
+          updatedAt: new Date(),
+        },
+      });
   }
   for (const values of chunk(participantRows))
     await db.insert(participants).values(values).onConflictDoNothing();
@@ -441,12 +565,12 @@ async function main() {
   const resolvedSongRows = songRows.filter((row) => row.spotifyTrackId);
   for (const row of resolvedSongRows) {
     await db
-    .update(songs)
-    .set({
-      artistName: row.artistName,
-      spotifyTrackId: row.spotifyTrackId,
-    })
-    .where(eq(songs.id, row.id));
+      .update(songs)
+      .set({
+        artistName: row.artistName,
+        spotifyTrackId: row.spotifyTrackId,
+      })
+      .where(and(eq(songs.id, row.id), isNull(songs.spotifyTrackId)));
   }
   if (playlistTracks.length) {
     console.log(
@@ -463,20 +587,20 @@ async function main() {
   }));
   for (const values of chunk(editionRows)) {
     await db
-    .insert(weeklyEditions)
-    .values(values)
-    .onConflictDoUpdate({
-      target: [
-        weeklyEditions.sourceSpreadsheetId,
-        weeklyEditions.sourceTabName,
-      ],
-      set: { importedAt: new Date() },
-    });
+      .insert(weeklyEditions)
+      .values(values)
+      .onConflictDoUpdate({
+        target: [
+          weeklyEditions.sourceSpreadsheetId,
+          weeklyEditions.sourceTabName,
+        ],
+        set: { importedAt: new Date() },
+      });
   }
   for (const editionIds of chunk(editions.map((edition) => edition.id))) {
     await db
-    .delete(songAppearances)
-    .where(inArray(songAppearances.weeklyEditionId, editionIds));
+      .delete(songAppearances)
+      .where(inArray(songAppearances.weeklyEditionId, editionIds));
   }
 
   const participantIds = new Map(
@@ -499,13 +623,13 @@ async function main() {
   await db.update(weeklyEditions).set({ isCanonical: false });
   for (const ids of chunk(
     editions
-    .filter((edition) => edition.isCanonical)
-    .map((edition) => edition.id),
+      .filter((edition) => edition.isCanonical)
+      .map((edition) => edition.id),
   )) {
     await db
-    .update(weeklyEditions)
-    .set({ isCanonical: true })
-    .where(inArray(weeklyEditions.id, ids));
+      .update(weeklyEditions)
+      .set({ isCanonical: true })
+      .where(inArray(weeklyEditions.id, ids));
   }
   console.log(
     `Imported ${editions.length} source snapshots, ${participantRows.length} participants, ${songRows.length} title records, and ${appearanceRows.length} tier placements.`,
