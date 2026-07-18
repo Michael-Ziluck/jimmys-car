@@ -3,7 +3,7 @@ import { defineConfig } from "drizzle-kit";
 
 loadEnvConfig(process.cwd());
 
-const databaseUrl = process.env.DATABASE_URL;
+const databaseUrl: string | undefined = process.env["DATABASE_URL"];
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required to run Drizzle Kit.");
 }

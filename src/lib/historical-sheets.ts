@@ -1,4 +1,13 @@
-export const HISTORICAL_SHEET_SOURCES = [
+type HistoricalSheetSource = {
+  id: string;
+  title: string;
+  latestEditionDate: string;
+  latestExpectedTierCounts?: Record<"S" | "A" | "B" | "C" | "D" | "F", number>;
+  priority: 1 | 2 | 3 | 4;
+  latestSheetGid?: string;
+};
+
+export const HISTORICAL_SHEET_SOURCES: readonly HistoricalSheetSource[] = [
   {
     id: "1kps38iLua4rAnt3fhQN8if04luDoMf5YAW-TMUAQQuI",
     title: "Jimmy's Car Tier List (first 2 years)",

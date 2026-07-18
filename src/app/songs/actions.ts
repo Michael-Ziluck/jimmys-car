@@ -12,16 +12,16 @@ export type SpotifySuggestionState = {
   message: string;
 };
 
-function directSpotifyTrackId(value: string) {
-  const trimmedValue = value.trim();
+function directSpotifyTrackId(value: string) : string | undefined {
+  const trimmedValue: string = value.trim();
   if (/^[A-Za-z0-9]{22}$/.test(trimmedValue)) return trimmedValue;
 
-  const uriMatch = trimmedValue.match(/^spotify:track:([A-Za-z0-9]{22})$/i);
+  const uriMatch: RegExpMatchArray | null = trimmedValue.match(/^spotify:track:([A-Za-z0-9]{22})$/i);
   if (uriMatch) return uriMatch[1];
 
   try {
-    const url = new URL(trimmedValue);
-    const pathMatch = url.pathname.match(/^\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]{22})(?:\/|$)/i);
+    const url: URL = new URL(trimmedValue);
+    const pathMatch: RegExpMatchArray | null = url.pathname.match(/^\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]{22})(?:\/|$)/i);
     if (url.hostname === "open.spotify.com" && pathMatch) {
       return pathMatch[1];
     }
@@ -31,14 +31,14 @@ function directSpotifyTrackId(value: string) {
   return undefined;
 }
 
-async function spotifyTrackId(value: string) {
-  const directTrackId = directSpotifyTrackId(value);
+async function spotifyTrackId(value: string) : Promise<string | undefined> {
+  const directTrackId: string | undefined = directSpotifyTrackId(value);
   if (directTrackId) return directTrackId;
 
   try {
-    const url = new URL(value.trim());
+    const url: URL = new URL(value.trim());
     if (url.hostname !== "spotify.link") return undefined;
-    const response = await fetch(url, { method: "HEAD", redirect: "follow", cache: "no-store" });
+    const response: Response = await fetch(url, { method: "HEAD", redirect: "follow", cache: "no-store" });
     return directSpotifyTrackId(response.url);
   } catch {
     return undefined;
@@ -50,13 +50,13 @@ export async function submitSpotifySuggestion(
   _previousState: SpotifySuggestionState,
   formData: FormData,
 ): Promise<SpotifySuggestionState> {
-  const submittedValue = formData.get("spotifyTrack")?.toString().trim() ?? "";
-  const trackId = await spotifyTrackId(submittedValue);
+  const submittedValue: string = formData.get("spotifyTrack")?.toString().trim() ?? "";
+  const trackId: string | undefined = await spotifyTrackId(submittedValue);
   if (!trackId) {
     return { status: "error", message: "Enter a 22-character Spotify track ID or Spotify track share link." };
   }
 
-  const db = getDb();
+  const db: ReturnType<typeof getDb> = getDb();
   const [song] = await db
     .select({ id: songs.id, spotifyTrackId: songs.spotifyTrackId })
     .from(songs)
