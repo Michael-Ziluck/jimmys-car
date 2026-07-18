@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { SongView } from "./song-results";
+import type { SongPreferenceResponse, SongView } from "@/types";
 
 const storageKey: string = "jimmys-car-song-view";
 const storageEvent: string = "jimmys-car-song-view-change";
@@ -23,9 +23,8 @@ export function ensureStoredSongView(): Promise<SongView> {
   preferenceRequest = fetch("/api/preferences", { cache: "no-store" })
     .then(async (response) => {
       if (!response.ok) return "cards";
-      const preference: { songView?: SongView } = (await response.json()) as {
-        songView?: SongView;
-      };
+      const preference: SongPreferenceResponse =
+        (await response.json()) as SongPreferenceResponse;
       return preference.songView === "list" ? "list" : "cards";
     })
     .catch(() => "cards" as const)

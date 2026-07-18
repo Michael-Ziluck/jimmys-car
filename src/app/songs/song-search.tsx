@@ -4,18 +4,10 @@ import { useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import type { Tier } from "@/db/types";
+import type { LegacySongResult, SongSearchProps, Tier } from "@/types";
 import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
 import { SpotifyLinkDialog } from "./spotify-link-dialog";
 
-type SongResult = {
-  id: string;
-  title: string;
-  artistName: string | null;
-  spotifyTrackId: string | null;
-  tier: Tier | null;
-  owner: string | null;
-};
 const tierStyles: Record<Tier, string> = {
   S: "bg-rose-100 text-rose-800",
   A: "bg-orange-100 text-orange-800",
@@ -25,15 +17,9 @@ const tierStyles: Record<Tier, string> = {
   F: "bg-violet-100 text-violet-800",
 };
 
-export function SongSearch({
-  songs,
-  scopeLabel,
-}: {
-  songs: SongResult[];
-  scopeLabel: string;
-}) {
+export function SongSearch({ songs, scopeLabel }: SongSearchProps) {
   const [query, setQuery] = useState("");
-  const results: SongResult[] = useMemo(
+  const results: LegacySongResult[] = useMemo(
     () =>
       songs.filter((song) =>
         [song.title, song.artistName ?? "", song.owner ?? ""].some((value) =>

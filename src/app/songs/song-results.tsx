@@ -1,5 +1,9 @@
 "use client";
 
+import Image from "next/image";
+import { Music2 } from "lucide-react";
+import { useState } from "react";
+
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -8,21 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Tier } from "@/db/types";
+import type {
+  OwnerLabelProps,
+  SongActionProps,
+  SongResultsProps,
+  Tier,
+  TierBadgeProps,
+} from "@/types";
 import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
 import { SpotifyLinkDialog } from "./spotify-link-dialog";
-
-export type SongView = "cards" | "list";
-
-export type DisplaySong = {
-  id: string;
-  title: string;
-  artistName: string | null;
-  spotifyTrackId: string | null;
-  pendingSpotifyTrackId: string | null;
-  tier: Tier | null;
-  owner: string | null;
-};
 
 const tierStyles: Record<Tier, string> = {
   S: "bg-rose-100 text-rose-800",
@@ -33,33 +31,63 @@ const tierStyles: Record<Tier, string> = {
   F: "bg-violet-100 text-violet-800",
 };
 
-function TierBadge({
-  tier,
-  tall = false,
-}: {
-  tier: Tier | null;
-  tall?: boolean;
-}) {
-  const size: string = tall ? "h-12 w-12" : "size-10";
-
-  return tier ? (
-    <Badge
-      className={`flex ${size} shrink-0 justify-center rounded-xl font-mono text-sm font-bold ${tierStyles[tier]}`}
-      title={`${tier} tier`}
+function TierBadge({ tier, tall = false }: TierBadgeProps) {
+  return (
+    <div
+      className={`flex shrink-0 ${tall ? "flex-col items-end gap-1" : "items-center"}`}
+      title={tier ? `Current rank: ${tier} tier` : "Past song"}
     >
-      {tier}
-    </Badge>
-  ) : (
-    <Badge
-      variant="outline"
-      className={`flex ${size} shrink-0 justify-center rounded-xl text-xs`}
-    >
-      Past
-    </Badge>
+      {tall ? (
+        <span className="text-[0.625rem] font-semibold tracking-[0.12em] text-stone-400 uppercase">
+          {tier ? "Current rank" : "Status"}
+        </span>
+      ) : null}
+      <Badge
+        variant={tier ? "default" : "outline"}
+        className={`h-6 rounded-full px-2.5 font-mono text-[0.6875rem] font-bold ${tier ? tierStyles[tier] : "text-stone-500"}`}
+      >
+        {tier ? `${tier} tier` : "Past"}
+      </Badge>
+    </div>
   );
 }
 
-function OwnerLabel({ owner }: { owner: string }) {
+function SongArtwork({
+  trackId,
+  title,
+  size,
+}: {
+  trackId: string | null;
+  title: string;
+  size: "small" | "large";
+}) {
+  const [failed, setFailed] = useState(false);
+  const dimensions: string = size === "large" ? "size-20" : "size-12";
+
+  return (
+    <div
+      className={`relative ${dimensions} shrink-0 overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-950/5`}
+    >
+      {trackId && !failed ? (
+        <Image
+          src={`/api/spotify/art/${trackId}`}
+          alt={`Album art for ${title}`}
+          fill
+          sizes={size === "large" ? "80px" : "48px"}
+          className="object-cover"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <span className="flex size-full items-center justify-center bg-linear-to-br from-amber-50 to-stone-100 text-amber-700/55">
+          <Music2 className={size === "large" ? "size-7" : "size-4"} />
+          <span className="sr-only">No album art available</span>
+        </span>
+      )}
+    </div>
+  );
+}
+
+function OwnerLabel({ owner }: OwnerLabelProps) {
   return (
     <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-amber-900">
       <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
@@ -68,7 +96,7 @@ function OwnerLabel({ owner }: { owner: string }) {
   );
 }
 
-function SongAction({ song }: { song: DisplaySong }) {
+function SongAction({ song }: SongActionProps) {
   return song.spotifyTrackId ? (
     <SpotifyEmbedDialog trackId={song.spotifyTrackId} songTitle={song.title} />
   ) : (
@@ -80,13 +108,7 @@ function SongAction({ song }: { song: DisplaySong }) {
   );
 }
 
-export function SongResults({
-  songs,
-  view,
-}: {
-  songs: DisplaySong[];
-  view: SongView;
-}) {
+export function SongResults({ songs, view }: SongResultsProps) {
   if (view === "list") {
     return (
       <Card className="overflow-hidden rounded-2xl py-0">
@@ -95,9 +117,13 @@ export function SongResults({
             {songs.map((song) => (
               <li
                 key={song.id}
-                className="group grid grid-cols-[2.5rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:px-5"
+                className="group grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto] sm:px-5"
               >
-                <TierBadge tier={song.tier} />
+                <SongArtwork
+                  trackId={song.spotifyTrackId}
+                  title={song.title}
+                  size="small"
+                />
                 <div className="min-w-0 flex-1">
                   <p className="font-semibold text-stone-950 sm:truncate">
                     {song.title}
@@ -116,7 +142,10 @@ export function SongResults({
                     ) : null}
                   </p>
                 </div>
-                <div className="col-start-2 justify-self-start sm:col-start-3 sm:row-start-1 sm:justify-self-end">
+                <div className="col-start-2 row-start-2 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
+                  <TierBadge tier={song.tier} />
+                </div>
+                <div className="col-start-2 row-start-3 justify-self-start sm:col-start-4 sm:row-start-1 sm:justify-self-end">
                   <SongAction song={song} />
                 </div>
               </li>
@@ -138,14 +167,21 @@ export function SongResults({
             className={`absolute inset-x-0 top-0 h-1 ${song.tier ? tierStyles[song.tier].split(" ")[0] : "bg-stone-200"}`}
             aria-hidden="true"
           />
-          <CardHeader>
-            <div className="min-w-0 pr-2">
-              <CardTitle className="text-lg text-stone-950">
-                {song.title}
-              </CardTitle>
-              <p className="mt-1 text-sm text-stone-500">
-                {song.artistName ?? "Artist not linked"}
-              </p>
+          <CardHeader className="gap-4">
+            <div className="flex min-w-0 gap-3 pr-2">
+              <SongArtwork
+                trackId={song.spotifyTrackId}
+                title={song.title}
+                size="large"
+              />
+              <div className="min-w-0 pt-0.5">
+                <CardTitle className="text-lg text-stone-950">
+                  {song.title}
+                </CardTitle>
+                <p className="mt-1 text-sm text-stone-500">
+                  {song.artistName ?? "Artist not linked"}
+                </p>
+              </div>
             </div>
             <CardAction>
               <TierBadge tier={song.tier} tall />

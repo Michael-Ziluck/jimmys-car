@@ -15,10 +15,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  submitSpotifySuggestion,
-  type SpotifySuggestionState,
-} from "./actions";
+import type { SpotifyLinkDialogProps, SpotifySuggestionState } from "@/types";
+import { submitSpotifySuggestion } from "./actions";
 
 const initialSpotifySuggestionState: SpotifySuggestionState = {
   status: "idle",
@@ -30,11 +28,7 @@ export function SpotifyLinkDialog({
   songId,
   title,
   pendingSpotifyTrackId,
-}: {
-  songId: string;
-  title: string;
-  pendingSpotifyTrackId: string | null;
-}) {
+}: SpotifyLinkDialogProps) {
   const action: (
     _previousState: SpotifySuggestionState,
     formData: FormData,

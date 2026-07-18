@@ -1,14 +1,28 @@
 import Link from "next/link";
-import { type FormEvent, type ReactNode, useEffect } from "react";
+import { type FormEvent, useEffect } from "react";
 import { ArrowDownAZ, Music2, Regex, Search, UserRound, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { SongResults, type DisplaySong, type SongView } from "./song-results";
+import type {
+  SongBrowserCopy,
+  SongBrowserPageProps,
+  SongScope,
+  SongSortField,
+  SongView,
+} from "@/types";
+import { SongResults } from "./song-results";
 import { SongResultsSkeleton } from "./song-results-skeleton";
 import {
   ensureStoredSongView,
@@ -16,36 +30,7 @@ import {
   useStoredSongView,
 } from "./song-view-toggle";
 
-type SongScope = "current" | "history";
-export type SongSearchField = "song" | "artist";
-export type SongSortField = "song" | "artist";
-
-type SongBrowserPageProps = {
-  scope: SongScope;
-  songs: DisplaySong[] | null;
-  query: string;
-  onQueryChange: (query: string) => void;
-  countLabel: string | null;
-  error: string | null;
-  onRetry: () => void;
-  onSearch?: () => void;
-  advancedSearch: boolean;
-  onAdvancedSearchChange: (advanced: boolean) => void;
-  searchField: SongSearchField;
-  onSearchFieldChange: (field: SongSearchField) => void;
-  sortField: SongSortField;
-  onSortFieldChange: (field: SongSortField) => void;
-  searchError?: string | null;
-  showClear?: boolean;
-  emptyTitle: string;
-  emptyDescription: string;
-  footer?: ReactNode;
-};
-
-const copy: Record<
-  SongScope,
-  { eyebrow: string; title: string; description: string }
-> = {
+const copy: Record<SongScope, SongBrowserCopy> = {
   current: {
     eyebrow: "Current tier list",
     title: "Current songs",
@@ -223,38 +208,18 @@ export function SongBrowserPage({
               </Button>
             ) : null}
           </form>
-          <div className="flex shrink-0 items-center gap-1 rounded-xl border border-input bg-card p-1">
-            <span className="flex shrink-0 items-center px-2 text-xs font-medium text-stone-500">
-              <ArrowDownAZ className="mr-1 size-3.5" />
-              Sort
-            </span>
-            <ToggleGroup
-              type="single"
-              value={sortField}
-              onValueChange={(value) => {
-                if (value === "song" || value === "artist")
-                  onSortFieldChange(value);
-              }}
-              variant="outline"
-              size="sm"
-              className="gap-1"
-              aria-label="Sort songs"
-            >
-              <ToggleGroupItem
-                value="song"
-                className="h-10 rounded-lg! border-0 px-2.5 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                aria-label="Sort by song name"
-              >
-                Song
-              </ToggleGroupItem>
-              <ToggleGroupItem
-                value="artist"
-                className="h-10 rounded-lg! border-0 px-2.5 data-[state=on]:bg-primary data-[state=on]:text-primary-foreground"
-                aria-label="Sort by artist name"
-              >
-                Artist
-              </ToggleGroupItem>
-            </ToggleGroup>
+          <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-input bg-card p-1">
+            <ArrowDownAZ className="ml-2 size-3.5 text-stone-500" aria-hidden="true" />
+            <Select value={sortField} onValueChange={(value) => onSortFieldChange(value as SongSortField)}>
+              <SelectTrigger className="h-10 min-w-36 rounded-lg border-0 bg-transparent shadow-none focus-visible:ring-0" aria-label="Sort songs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent align="end">
+                <SelectItem value="time">Recently removed</SelectItem>
+                <SelectItem value="song">Song name</SelectItem>
+                <SelectItem value="artist">Artist name</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </div>
         {searchError ? (

@@ -4,9 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import type { NavigationLink } from "@/types";
 
-const links: Array<{ href: string; label: string }> = [
+const links: NavigationLink[] = [
   { href: "/admin", label: "Song review" },
+  { href: "/admin/matches", label: "Potential matches" },
   { href: "/admin/users", label: "People" },
   { href: "/admin/links", label: "Links" },
 ];
@@ -21,7 +23,9 @@ export function AdminNav() {
     >
       <div className="flex gap-7">
         {links.map((link) => {
-          const active: boolean = pathname === link.href;
+          const active: boolean =
+            pathname === link.href ||
+            (link.href !== "/admin" && pathname.startsWith(`${link.href}/`));
 
           return (
             <Link

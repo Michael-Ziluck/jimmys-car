@@ -13,12 +13,10 @@ import {
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { getSpotifyTrackMetadata } from "@/lib/spotify";
+import type { AppUser, ExtraLink, NewAppSetting, Song } from "@/types";
 
-async function requireAdmin(): Promise<
-  NonNullable<Awaited<ReturnType<typeof getCurrentUser>>>
-> {
-  const user: Awaited<ReturnType<typeof getCurrentUser>> =
-    await getCurrentUser();
+async function requireAdmin(): Promise<AppUser> {
+  const user: AppUser | null = await getCurrentUser();
   if (!user || user.role !== "admin")
     throw new Error("Administrator access required.");
   return user;
@@ -48,7 +46,7 @@ export async function approveSpotifySuggestion(
   const track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>> =
     await getSpotifyTrackMetadata(suggestion.spotifyTrackId);
 
-  const linkedSongs: Array<{ id: string }> = await db
+  const linkedSongs: Array<Pick<Song, "id">> = await db
     .update(songs)
     .set({
       spotifyTrackId: suggestion.spotifyTrackId,
@@ -69,9 +67,25 @@ export async function approveSpotifySuggestion(
   revalidatePath("/songs/history");
 }
 
+export async function assignSpotifyMatch(
+  songId: string,
+  spotifyTrackId: string,
+): Promise<void> {
+  await requireAdmin();
+  const track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>> =
+    await getSpotifyTrackMetadata(spotifyTrackId);
+  await getDb()
+    .update(songs)
+    .set({ spotifyTrackId, artistName: track.artistName })
+    .where(and(eq(songs.id, songId), isNull(songs.spotifyTrackId)));
+  revalidatePath("/admin/matches");
+  revalidatePath("/admin/matches/history");
+  revalidatePath("/songs");
+  revalidatePath("/songs/history");
+}
+
 export async function promoteUserToAdmin(userId: string): Promise<void> {
-  const admin: NonNullable<Awaited<ReturnType<typeof getCurrentUser>>> =
-    await requireAdmin();
+  const admin: AppUser = await requireAdmin();
   if (admin.id === userId) throw new Error("Choose another registered user.");
   await getDb()
     .update(appUsers)
@@ -97,32 +111,29 @@ export async function assignParticipantSpotifyId(
 
 export async function updateExternalLinks(formData: FormData): Promise<void> {
   await requireAdmin();
-  const values: Array<{ key: string; value: string; updatedAt: Date }> = [
-    "spreadsheet_url",
-    "playlist_url",
-  ].map((key) => {
-    const value: string = formData.get(key)?.toString().trim() ?? "";
-    const url: URL = new URL(value);
-    if (url.protocol !== "https:")
-      throw new Error("External links must use HTTPS.");
-    return { key, value: url.toString(), updatedAt: new Date() };
-  });
+  const values: NewAppSetting[] = ["spreadsheet_url", "playlist_url"].map(
+    (key) => {
+      const value: string = formData.get(key)?.toString().trim() ?? "";
+      const url: URL = new URL(value);
+      if (url.protocol !== "https:")
+        throw new Error("External links must use HTTPS.");
+      return { key, value: url.toString(), updatedAt: new Date() };
+    },
+  );
   const labels: Array<string> = formData
     .getAll("extra_label")
     .map((value) => value.toString().trim());
   const urls: Array<string> = formData
     .getAll("extra_url")
     .map((value) => value.toString().trim());
-  const extraLinks: Array<{ label: string; url: string }> = labels.map(
-    (label, index) => {
-      if (!label || !urls[index])
-        throw new Error("Each additional link needs a name and URL.");
-      const url: URL = new URL(urls[index]);
-      if (url.protocol !== "https:")
-        throw new Error("External links must use HTTPS.");
-      return { label, url: url.toString() };
-    },
-  );
+  const extraLinks: ExtraLink[] = labels.map((label, index) => {
+    if (!label || !urls[index])
+      throw new Error("Each additional link needs a name and URL.");
+    const url: URL = new URL(urls[index]);
+    if (url.protocol !== "https:")
+      throw new Error("External links must use HTTPS.");
+    return { label, url: url.toString() };
+  });
   values.push({
     key: "extra_links",
     value: JSON.stringify(extraLinks),
