@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 import { ExternalLink, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -31,17 +31,17 @@ declare global {
   }
 }
 
-const SPOTIFY_IFRAME_API_SRC = "https://open.spotify.com/embed/iframe-api/v1";
+const SPOTIFY_IFRAME_API_SRC: string = "https://open.spotify.com/embed/iframe-api/v1";
 let spotifyIframeApi: SpotifyIframeApi | undefined;
 let spotifyIframeApiPromise: Promise<SpotifyIframeApi> | undefined;
 
-function loadSpotifyIframeApi() {
+function loadSpotifyIframeApi() : Promise<SpotifyIframeApi> {
   if (window.__spotifyIframeApi) return Promise.resolve(window.__spotifyIframeApi);
   if (spotifyIframeApi) return Promise.resolve(spotifyIframeApi);
   if (spotifyIframeApiPromise) return spotifyIframeApiPromise;
 
   spotifyIframeApiPromise = new Promise<SpotifyIframeApi>((resolve, reject) => {
-    const previousReadyHandler = window.onSpotifyIframeApiReady;
+    const previousReadyHandler: ((api: SpotifyIframeApi) => void) | undefined = window.onSpotifyIframeApiReady;
     window.onSpotifyIframeApiReady = (api) => {
       spotifyIframeApi = api;
       window.__spotifyIframeApi = api;
@@ -49,12 +49,12 @@ function loadSpotifyIframeApi() {
       resolve(api);
     };
 
-    const existingScript = document.querySelector<HTMLScriptElement>(
+    const existingScript: HTMLScriptElement | null = document.querySelector<HTMLScriptElement>(
       `script[src="${SPOTIFY_IFRAME_API_SRC}"]`,
     );
     existingScript?.remove();
 
-    const script = document.createElement("script");
+    const script: HTMLScriptElement = document.createElement("script");
     script.src = SPOTIFY_IFRAME_API_SRC;
     script.async = true;
     script.addEventListener("error", () => {
@@ -71,23 +71,23 @@ export function SpotifyEmbedDialog({ trackId, songTitle }: { trackId: string; so
   const [hasOpened, setHasOpened] = useState(false);
   const [embed, setEmbed] = useState<EmbedData>();
   const [error, setError] = useState("");
-  const playerElementRef = useRef<HTMLDivElement>(null);
-  const controllerRef = useRef<SpotifyEmbedController>(null);
-  const dialogRef = useRef<HTMLDialogElement>(null);
+  const playerElementRef: RefObject<HTMLDivElement | null> = useRef<HTMLDivElement>(null);
+  const controllerRef: RefObject<SpotifyEmbedController | null> = useRef<SpotifyEmbedController>(null);
+  const dialogRef: RefObject<HTMLDialogElement | null> = useRef<HTMLDialogElement>(null);
 
-  const openDialog = useCallback(() => {
+  const openDialog: () => void = useCallback(() => {
     setHasOpened(true);
     dialogRef.current?.showModal();
   }, []);
 
-  const closeDialog = useCallback(() => {
+  const closeDialog: () => void = useCallback(() => {
     controllerRef.current?.pause();
     dialogRef.current?.close();
   }, []);
 
   useEffect(() => {
     if (!hasOpened || embed || error) return;
-    const controller = new AbortController();
+    const controller: AbortController = new AbortController();
     fetch(`/api/spotify/oembed?trackId=${encodeURIComponent(trackId)}`, { signal: controller.signal })
       .then(async (response) => {
         if (!response.ok) throw new Error("Spotify could not load this player.");
@@ -103,7 +103,7 @@ export function SpotifyEmbedDialog({ trackId, songTitle }: { trackId: string; so
   useEffect(() => {
     if (!hasOpened || !embed || !playerElementRef.current || controllerRef.current) return;
 
-    let cancelled = false;
+    let cancelled: boolean = false;
     loadSpotifyIframeApi()
       .then((api) => {
         if (cancelled || !playerElementRef.current) return;
