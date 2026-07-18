@@ -10,10 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getDb } from "@/db";
 import { appSettings } from "@/db/schema";
+import type { ExtraLink } from "@/types";
 import { updateExternalLinks } from "../actions";
 import { LinksEditor } from "./links-editor";
-
-type ExtraLink = { label: string; url: string };
 
 function parseExtraLinks(value: string | undefined): Array<ExtraLink> {
   if (!value) return [];

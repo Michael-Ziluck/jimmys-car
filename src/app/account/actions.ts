@@ -7,21 +7,10 @@ import { redirect } from "next/navigation";
 import { getDb } from "@/db";
 import { appUsers } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import type { AppUser } from "@/types";
 
 export async function claimParticipant(participantId: string): Promise<void> {
-  const user: {
-    id: string;
-    discordId: string;
-    discordUsername: string;
-    discordDisplayName: string | null;
-    discordAvatar: string | null;
-    spotifyAccountId: string | null;
-    spotifyDisplayName: string | null;
-    spotifyImageUrl: string | null;
-    claimedParticipantId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null = await getCurrentUser();
+  const user: AppUser | null = await getCurrentUser();
   if (!user) redirect("/account?error=sign_in_required");
   if (user.claimedParticipantId)
     redirect("/account?claim_error=already_claimed");
@@ -41,19 +30,7 @@ export async function claimParticipant(participantId: string): Promise<void> {
 }
 
 export async function disconnectSpotify(): Promise<void> {
-  const user: {
-    id: string;
-    discordId: string;
-    discordUsername: string;
-    discordDisplayName: string | null;
-    discordAvatar: string | null;
-    spotifyAccountId: string | null;
-    spotifyDisplayName: string | null;
-    spotifyImageUrl: string | null;
-    claimedParticipantId: string | null;
-    createdAt: Date;
-    updatedAt: Date;
-  } | null = await getCurrentUser();
+  const user: AppUser | null = await getCurrentUser();
   if (!user) redirect("/account?error=sign_in_required");
   await getDb()
     .update(appUsers)

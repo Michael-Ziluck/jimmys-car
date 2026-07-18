@@ -1,13 +1,11 @@
-import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/auth";
+import type { LayoutProps } from "@/types";
 
 import { AdminNav } from "./admin-nav";
 
-export default async function AdminLayout({
-  children,
-}: Readonly<{ children: ReactNode }>) {
+export default async function AdminLayout({ children }: Readonly<LayoutProps>) {
   const user: Awaited<ReturnType<typeof getCurrentUser>> =
     await getCurrentUser();
   if (user?.role !== "admin") redirect("/songs");

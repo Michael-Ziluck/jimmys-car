@@ -3,8 +3,7 @@ import { eq } from "drizzle-orm";
 import { getDb } from "@/db";
 import { appUsers } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
-
-export type SongView = "cards" | "list";
+import type { SongPreferenceRequest } from "@/types";
 
 export async function GET(): Promise<Response> {
   const user: Awaited<ReturnType<typeof getCurrentUser>> =
@@ -24,9 +23,8 @@ export async function PATCH(request: Request): Promise<Response> {
   if (!user)
     return Response.json({ error: "Sign in required." }, { status: 401 });
 
-  const body: { songView?: string } = (await request.json()) as {
-    songView?: string;
-  };
+  const body: SongPreferenceRequest =
+    (await request.json()) as SongPreferenceRequest;
   if (body.songView !== "cards" && body.songView !== "list") {
     return Response.json({ error: "Choose cards or list." }, { status: 400 });
   }

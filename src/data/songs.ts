@@ -1,15 +1,6 @@
-export type Tier = "S" | "A" | "B" | "C" | "D" | "F";
+import type { DemoSong } from "@/types";
 
-export type Song = {
-  id: string;
-  spotifyId: string;
-  title: string;
-  artist: string;
-  currentTier: Tier;
-  submittedBy: string;
-};
-
-export const songs: Song[] = [
+export const songs: DemoSong[] = [
   {
     id: "1",
     spotifyId: "demo-1",

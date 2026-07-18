@@ -1,14 +1,9 @@
 "use client";
 
 import { useEffect } from "react";
+import type { FlashNoticeProps } from "@/types";
 
-export function FlashNotice({
-  message,
-  kind,
-}: {
-  message: string;
-  kind: "success" | "error";
-}) {
+export function FlashNotice({ message, kind }: FlashNoticeProps) {
   useEffect(() => {
     void fetch("/api/auth/flash", { method: "POST" });
   }, []);

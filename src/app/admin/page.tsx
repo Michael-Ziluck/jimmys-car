@@ -18,17 +18,12 @@ import {
 } from "@/components/ui/table";
 import { getDb } from "@/db";
 import { songs, spotifyLinkSuggestions } from "@/db/schema";
+import type { PendingSpotifySuggestion } from "@/types";
 import { approveSpotifySuggestion } from "./actions";
 
 export default async function AdminPage() {
   const db: ReturnType<typeof getDb> = getDb();
-  const suggestions: Array<{
-    id: string;
-    title: string;
-    artistName: string | null;
-    spotifyTrackId: string;
-    createdAt: Date;
-  }> = await db
+  const suggestions: PendingSpotifySuggestion[] = await db
     .select({
       id: spotifyLinkSuggestions.id,
       title: songs.title,

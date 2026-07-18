@@ -20,19 +20,16 @@ import {
 } from "@/components/ui/table";
 import { getDb } from "@/db";
 import { appUsers, participants } from "@/db/schema";
+import type { AppUser, UnclaimedParticipantProfile } from "@/types";
 import { assignParticipantSpotifyId, promoteUserToAdmin } from "../actions";
 
 export default async function AdminUsersPage() {
   const db: ReturnType<typeof getDb> = getDb();
-  const users: Array<typeof appUsers.$inferSelect> = await db
+  const users: AppUser[] = await db
     .select()
     .from(appUsers)
     .orderBy(asc(appUsers.createdAt));
-  const unclaimedProfiles: Array<{
-    id: string;
-    displayName: string;
-    spotifyAccountId: string | null;
-  }> = await db
+  const unclaimedProfiles: UnclaimedParticipantProfile[] = await db
     .select({
       id: participants.id,
       displayName: participants.displayName,

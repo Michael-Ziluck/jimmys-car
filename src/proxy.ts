@@ -2,6 +2,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 import { flashCookieName } from "@/lib/flash";
+import type { ProxyMatcherConfig } from "@/types";
 
 /** Render an account flash once, then clear it in the same response. */
 export function proxy(request: NextRequest): NextResponse {
@@ -12,4 +13,4 @@ export function proxy(request: NextRequest): NextResponse {
   return response;
 }
 
-export const config: { matcher: string } = { matcher: "/account" };
+export const config: ProxyMatcherConfig = { matcher: "/account" };

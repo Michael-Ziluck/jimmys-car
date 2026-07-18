@@ -2,9 +2,9 @@ import "server-only";
 
 import type { NextResponse } from "next/server";
 
-export const flashCookieName: string = "jimmys_car_flash";
+import type { FlashMessage } from "@/types";
 
-export type FlashMessage = { kind: "success" | "error"; message: string };
+export const flashCookieName: string = "jimmys_car_flash";
 
 function setFlash(response: NextResponse, flash: FlashMessage): void {
   response.cookies.set(flashCookieName, JSON.stringify(flash), {

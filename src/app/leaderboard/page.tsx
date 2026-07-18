@@ -10,10 +10,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { getLeaderboard, type LeaderboardEntry } from "@/data/leaderboard";
+import { getLeaderboard } from "@/data/leaderboard";
+import type { LeaderboardEntry, ScoreChangeProps, ScoringRule } from "@/types";
 import { cn } from "@/lib/utils";
 
-const scoring: Array<{ tier: string; points: string }> = [
+const scoring: ScoringRule[] = [
   { tier: "S", points: "+4" },
   { tier: "A", points: "+2" },
   { tier: "B", points: "+1" },
@@ -31,7 +32,7 @@ function displayDate(value: string): string {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
-function Change({ value }: { value: number }) {
+function Change({ value }: ScoreChangeProps) {
   const Icon: LucideIcon = value > 0 ? ArrowUp : value < 0 ? ArrowDown : Minus;
   return (
     <span

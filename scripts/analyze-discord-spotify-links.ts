@@ -1,24 +1,14 @@
 import { loadEnvConfig } from "@next/env";
 import { neon } from "@neondatabase/serverless";
+import type {
+  DiscordDatabaseSong as SongRow,
+  DiscordMessage,
+  DiscordRateLimitResponse,
+  DiscordSongMatch,
+  DiscordSongUpdate,
+  SpotifyTrack as DiscordTrack,
+} from "@/types";
 import { normalizeSongTitle, songTitleMatchKey } from "./song-title-matching";
-
-type DiscordMessage = {
-  id: string;
-  content: string;
-  embeds?: Array<{
-    url?: string;
-    title?: string;
-    description?: string;
-    provider?: { name?: string };
-  }>;
-};
-type DiscordTrack = { id: string; title: string; artist: string };
-type SongRow = {
-  id: string;
-  title: string;
-  normalized_title: string;
-  spotify_track_id: string | null;
-};
 
 const CHANNEL_ID: string = "846835164159541298";
 const DISCORD_API: string = `https://discord.com/api/v10/channels/${CHANNEL_ID}/messages`;
@@ -42,9 +32,8 @@ async function fetchDiscord(url: URL, token: string): Promise<Response> {
       },
     });
     if (response.status !== 429) return response;
-    const rateLimit: { retry_after?: number } = (await response.json()) as {
-      retry_after?: number;
-    };
+    const rateLimit: DiscordRateLimitResponse =
+      (await response.json()) as DiscordRateLimitResponse;
     await wait(Math.ceil((rateLimit.retry_after ?? 1) * 1000) + 100);
   }
 }
@@ -82,7 +71,7 @@ async function main(): Promise<void> {
     sql`select id, title, normalized_title, spotify_track_id from songs`,
   ]);
   const songRows: SongRow[] = rawSongRows as SongRow[];
-  const tracks: { id: string; title: string; artist: string }[] = [
+  const tracks: DiscordTrack[] = [
     ...new Map(
       messages.flatMap((message) =>
         (message.embeds ?? []).flatMap((embed) => {
@@ -109,57 +98,37 @@ async function main(): Promise<void> {
     const key: string = songTitleMatchKey(song.normalized_title);
     songsByTitle.set(key, [...(songsByTitle.get(key) ?? []), song]);
   }
-  const exactMatches: {
-    song: SongRow;
-    track: { id: string; title: string; artist: string };
-  }[] = tracks.flatMap((track) => {
+  const exactMatches: DiscordSongMatch[] = tracks.flatMap((track) => {
     const candidates: SongRow[] =
       songsByTitle.get(songTitleMatchKey(normalize(track.title))) ?? [];
     const song: SongRow | undefined =
       candidates.length === 1 ? candidates[0] : undefined;
     return song ? [{ song, track }] : [];
   });
-  const unresolvedExactMatches: {
-    song: SongRow;
-    track: { id: string; title: string; artist: string };
-  }[] = exactMatches.filter(({ song }) => !song.spotify_track_id);
-  const conflictingExactMatches: {
-    song: SongRow;
-    track: { id: string; title: string; artist: string };
-  }[] = exactMatches.filter(
+  const unresolvedExactMatches: DiscordSongMatch[] = exactMatches.filter(
+    ({ song }) => !song.spotify_track_id,
+  );
+  const conflictingExactMatches: DiscordSongMatch[] = exactMatches.filter(
     ({ song, track }) =>
       song.spotify_track_id && song.spotify_track_id !== track.id,
   );
-  const unresolvedBySong: Map<
-    string,
-    { song: SongRow; track: { id: string; title: string; artist: string } }[]
-  > = new Map<string, typeof unresolvedExactMatches>();
+  const unresolvedBySong: Map<string, DiscordSongMatch[]> = new Map();
   for (const match of unresolvedExactMatches) {
     unresolvedBySong.set(match.song.id, [
       ...(unresolvedBySong.get(match.song.id) ?? []),
       match,
     ]);
   }
-  const singleTrackMatches: {
-    song: SongRow;
-    track: { id: string; title: string; artist: string };
-  }[][] = [...unresolvedBySong.values()].filter(
+  const singleTrackMatches: DiscordSongMatch[][] = [
+    ...unresolvedBySong.values(),
+  ].filter(
     (matches) => new Set(matches.map(({ track }) => track.id)).size === 1,
   );
-  const multipleTrackMatches: {
-    song: SongRow;
-    track: { id: string; title: string; artist: string };
-  }[][] = [...unresolvedBySong.values()].filter(
-    (matches) => new Set(matches.map(({ track }) => track.id)).size > 1,
-  );
-  const updates: {
-    id: string;
-    spotify_track_id: string;
-    artist_name: string | null;
-  }[] = singleTrackMatches.flatMap((matches) => {
-    const firstMatch:
-      | { song: SongRow; track: { id: string; title: string; artist: string } }
-      | undefined = matches[0];
+  const multipleTrackMatches: DiscordSongMatch[][] = [
+    ...unresolvedBySong.values(),
+  ].filter((matches) => new Set(matches.map(({ track }) => track.id)).size > 1);
+  const updates: DiscordSongUpdate[] = singleTrackMatches.flatMap((matches) => {
+    const firstMatch: DiscordSongMatch | undefined = matches[0];
     return firstMatch
       ? [
           {
@@ -203,12 +172,7 @@ async function main(): Promise<void> {
         conflictsWithExistingLink: conflictingExactMatches.length,
         applied: applied.length,
         samples: singleTrackMatches.slice(0, 12).flatMap((matches) => {
-          const firstMatch:
-            | {
-                song: SongRow;
-                track: { id: string; title: string; artist: string };
-              }
-            | undefined = matches[0];
+          const firstMatch: DiscordSongMatch | undefined = matches[0];
           return firstMatch
             ? [
                 {

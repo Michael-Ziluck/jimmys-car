@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
+import type { ApiError, SpotifyClientConfigResponse } from "@/types";
 
 export async function GET(): Promise<
-  | NextResponse<{ error: string }>
-  | NextResponse<{ clientId: string; clientSecret: string }>
+  NextResponse<ApiError> | NextResponse<SpotifyClientConfigResponse>
 > {
   const clientId: string | undefined = process.env["SPOTIFY_CLIENT_ID"];
   const clientSecret: string | undefined = process.env["SPOTIFY_CLIENT_SECRET"];
