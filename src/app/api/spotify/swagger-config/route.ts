@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 
-export async function GET() : Promise<NextResponse<{ error: string; }> | NextResponse<{ clientId: string; clientSecret: string; }>> {
+export async function GET(): Promise<
+  | NextResponse<{ error: string }>
+  | NextResponse<{ clientId: string; clientSecret: string }>
+> {
   const clientId: string | undefined = process.env["SPOTIFY_CLIENT_ID"];
   const clientSecret: string | undefined = process.env["SPOTIFY_CLIENT_SECRET"];
   if (!clientId || !clientSecret) {
