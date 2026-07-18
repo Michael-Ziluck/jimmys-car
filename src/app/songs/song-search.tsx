@@ -13,7 +13,7 @@ const tierStyles: Record<Tier, string> = { S: "bg-rose-100 text-rose-800", A: "b
 
 export function SongSearch({ songs, scopeLabel }: { songs: SongResult[]; scopeLabel: string }) {
   const [query, setQuery] = useState("");
-  const results = useMemo(() => songs.filter((song) => [song.title, song.artistName ?? "", song.owner ?? ""].some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))), [query, songs]);
+  const results: SongResult[] = useMemo(() => songs.filter((song) => [song.title, song.artistName ?? "", song.owner ?? ""].some((value) => value.toLowerCase().includes(query.trim().toLowerCase()))), [query, songs]);
   return <>
     <Input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search song title or participant…" className="mt-8 h-14 rounded-2xl bg-card px-5 text-base" />
     <p className="mt-4 text-sm text-stone-500">Showing {results.length} of {songs.length} {scopeLabel}</p>
