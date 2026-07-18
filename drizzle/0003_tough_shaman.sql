@@ -1,0 +1,1 @@
+ALTER TABLE "app_users" ADD COLUMN "song_view" text DEFAULT 'cards' NOT NULL;
