@@ -10,32 +10,12 @@ import {
 import { ExternalLink, Play } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-
-type EmbedData = {
-  title: string;
-  height: number;
-  spotifyUrl: string;
-};
-
-type SpotifyEmbedController = {
-  destroy: () => void;
-  pause: () => void;
-};
-
-type SpotifyIframeApi = {
-  createController: (
-    element: HTMLElement,
-    options: { url: string; width: string; height: number },
-    callback: (controller: SpotifyEmbedController) => void,
-  ) => void;
-};
-
-declare global {
-  interface Window {
-    __spotifyIframeApi?: SpotifyIframeApi;
-    onSpotifyIframeApiReady?: (api: SpotifyIframeApi) => void;
-  }
-}
+import type {
+  SpotifyEmbedController,
+  SpotifyEmbedData,
+  SpotifyEmbedDialogProps,
+  SpotifyIframeApi,
+} from "@/types";
 
 const SPOTIFY_IFRAME_API_SRC: string =
   "https://open.spotify.com/embed/iframe-api/v1";
@@ -84,12 +64,9 @@ function loadSpotifyIframeApi(): Promise<SpotifyIframeApi> {
 export function SpotifyEmbedDialog({
   trackId,
   songTitle,
-}: {
-  trackId: string;
-  songTitle: string;
-}) {
+}: SpotifyEmbedDialogProps) {
   const [hasOpened, setHasOpened] = useState(false);
-  const [embed, setEmbed] = useState<EmbedData>();
+  const [embed, setEmbed] = useState<SpotifyEmbedData>();
   const [error, setError] = useState("");
   const playerElementRef: RefObject<HTMLDivElement | null> =
     useRef<HTMLDivElement>(null);
@@ -117,7 +94,7 @@ export function SpotifyEmbedDialog({
       .then(async (response) => {
         if (!response.ok)
           throw new Error("Spotify could not load this player.");
-        setEmbed((await response.json()) as EmbedData);
+        setEmbed((await response.json()) as SpotifyEmbedData);
       })
       .catch((reason: unknown) => {
         if (reason instanceof DOMException && reason.name === "AbortError")

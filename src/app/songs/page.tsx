@@ -2,22 +2,14 @@
 
 import { useMemo, useState } from "react";
 
-import {
-  SongBrowserPage,
-  type SongSearchField,
-  type SongSortField,
-} from "./song-browser-page";
+import type {
+  DisplaySong,
+  SongFilterResult,
+  SongSearchField,
+  SongSortField,
+} from "@/types";
+import { SongBrowserPage } from "./song-browser-page";
 import { useSongData } from "./use-song-data";
-
-type SongResult = {
-  id: string;
-  title: string;
-  artistName: string | null;
-  spotifyTrackId: string | null;
-  pendingSpotifyTrackId: string | null;
-  tier: "S" | "A" | "B" | "C" | "D" | "F";
-  owner: string;
-};
 
 export default function SongsPage() {
   const [query, setQuery] = useState("");
@@ -28,56 +20,60 @@ export default function SongsPage() {
     data: songs,
     error,
     retry,
-  } = useSongData<SongResult[]>(
+  } = useSongData<DisplaySong[]>(
     "/api/songs/current",
     "Could not load current songs.",
   );
 
-  const searchResult: { songs: SongResult[] | null; error: string | null } =
-    useMemo(() => {
-      if (!songs) return { songs: null, error: null };
+  const searchResult: SongFilterResult = useMemo(() => {
+    if (!songs) return { songs: null, error: null };
 
-      const needle: string = query.trim().toLowerCase();
-      const searchableValue = (song: SongResult): string =>
-        searchField === "song" ? song.title : (song.artistName ?? "");
-      const sortSongs = (matches: SongResult[]): SongResult[] =>
-        [...matches].sort((left, right) => {
-          if (sortField === "song")
-            return left.title.localeCompare(right.title);
-          if (!left.artistName)
-            return right.artistName ? 1 : left.title.localeCompare(right.title);
-          if (!right.artistName) return -1;
+    const needle: string = query.trim().toLowerCase();
+    const searchableValue = (song: DisplaySong): string =>
+      searchField === "song" ? song.title : (song.artistName ?? "");
+    const sortSongs = (matches: DisplaySong[]): DisplaySong[] =>
+      [...matches].sort((left, right) => {
+        if (sortField === "song") return left.title.localeCompare(right.title);
+        if (sortField === "time")
           return (
-            left.artistName.localeCompare(right.artistName) ||
-            left.title.localeCompare(right.title)
+            (right.lastAppearanceDate ?? "").localeCompare(
+              left.lastAppearanceDate ?? "",
+            ) || left.title.localeCompare(right.title)
           );
-        });
-      if (!advancedSearch)
-        return {
-          songs: sortSongs(
-            songs.filter((song) =>
-              searchableValue(song).toLowerCase().includes(needle),
-            ),
+        if (!left.artistName)
+          return right.artistName ? 1 : left.title.localeCompare(right.title);
+        if (!right.artistName) return -1;
+        return (
+          left.artistName.localeCompare(right.artistName) ||
+          left.title.localeCompare(right.title)
+        );
+      });
+    if (!advancedSearch)
+      return {
+        songs: sortSongs(
+          songs.filter((song) =>
+            searchableValue(song).toLowerCase().includes(needle),
           ),
-          error: null,
-        };
+        ),
+        error: null,
+      };
 
-      try {
-        const pattern: RegExp = new RegExp(query, "i");
-        return {
-          songs: sortSongs(
-            songs.filter((song) => pattern.test(searchableValue(song))),
-          ),
-          error: null,
-        };
-      } catch {
-        return {
-          songs: [],
-          error: "That regular expression is not valid yet.",
-        };
-      }
-    }, [advancedSearch, query, searchField, songs, sortField]);
-  const results: SongResult[] | null = searchResult.songs;
+    try {
+      const pattern: RegExp = new RegExp(query, "i");
+      return {
+        songs: sortSongs(
+          songs.filter((song) => pattern.test(searchableValue(song))),
+        ),
+        error: null,
+      };
+    } catch {
+      return {
+        songs: [],
+        error: "That regular expression is not valid yet.",
+      };
+    }
+  }, [advancedSearch, query, searchField, songs, sortField]);
+  const results: DisplaySong[] | null = searchResult.songs;
 
   const countLabel: string | null =
     songs && results

@@ -1,13 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-
-type RequestState<T> = { key: string; data: T | null; error: string | null };
-type SongDataResult<T> = {
-  data: T | null;
-  error: string | null;
-  retry: () => void;
-};
+import type { SongDataResult, SongRequestState } from "@/types";
 
 const requests: Map<string, Promise<unknown>> = new Map();
 
@@ -31,7 +25,7 @@ export function useSongData<T>(
   url: string,
   errorMessage: string,
 ): SongDataResult<T> {
-  const [state, setState] = useState<RequestState<T>>({
+  const [state, setState] = useState<SongRequestState<T>>({
     key: "",
     data: null,
     error: null,

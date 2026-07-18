@@ -3,29 +3,13 @@
 import { type ReactNode, useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import type { Tier } from "@/db/types";
-import {
-  SongBrowserPage,
-  type SongSearchField,
-  type SongSortField,
-} from "../song-browser-page";
+import type {
+  SongHistoryResult,
+  SongSearchField,
+  SongSortField,
+} from "@/types";
+import { SongBrowserPage } from "../song-browser-page";
 import { useSongData } from "../use-song-data";
-
-type HistoryResult = {
-  songs: Array<{
-    id: string;
-    title: string;
-    artistName: string | null;
-    spotifyTrackId: string | null;
-    pendingSpotifyTrackId: string | null;
-    tier: Tier | null;
-    owner: string | null;
-  }>;
-  total: number;
-  page: number;
-  pageCount: number;
-  pageSize: number;
-};
 
 export default function SongHistoryPage() {
   const [query, setQuery] = useState("");
@@ -36,7 +20,7 @@ export default function SongHistoryPage() {
   const [searchField, setSearchField] = useState<SongSearchField>("song");
   const [submittedSearchField, setSubmittedSearchField] =
     useState<SongSearchField>("song");
-  const [sortField, setSortField] = useState<SongSortField>("song");
+  const [sortField, setSortField] = useState<SongSortField>("time");
   const [page, setPage] = useState(1);
   const params: URLSearchParams = new URLSearchParams({ page: String(page) });
   if (submittedQuery) params.set("q", submittedQuery);
@@ -47,7 +31,7 @@ export default function SongHistoryPage() {
     data: result,
     error,
     retry,
-  } = useSongData<HistoryResult>(
+  } = useSongData<SongHistoryResult>(
     `/api/songs/history?${params}`,
     "Could not load song history.",
   );

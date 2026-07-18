@@ -7,12 +7,7 @@ import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { songs, spotifyLinkSuggestions } from "@/db/schema";
-
-export type SpotifySuggestionState = {
-  status: "idle" | "error" | "success";
-  message: string;
-  spotifyTrackId: string | null;
-};
+import type { SpotifySuggestionState } from "@/types";
 
 function directSpotifyTrackId(value: string): string | undefined {
   const trimmedValue: string = value.trim();

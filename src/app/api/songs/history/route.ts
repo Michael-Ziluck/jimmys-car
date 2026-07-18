@@ -10,8 +10,11 @@ export async function GET(request: Request): Promise<Response> {
   const useRegex: boolean = searchParams.get("regex") === "1";
   const searchField: "song" | "artist" =
     searchParams.get("field") === "artist" ? "artist" : "song";
-  const sortField: "song" | "artist" =
-    searchParams.get("sort") === "artist" ? "artist" : "song";
+  const requestedSort: string | null = searchParams.get("sort");
+  const sortField: "song" | "artist" | "time" =
+    requestedSort === "song" || requestedSort === "artist"
+      ? requestedSort
+      : "time";
   return Response.json(
     await getSongHistoryPage(
       query,

@@ -7,6 +7,7 @@ import {
   eq,
   ilike,
   inArray,
+  max,
   sql,
   type SQL,
 } from "drizzle-orm";
@@ -19,6 +20,14 @@ import {
   spotifyLinkSuggestions,
   weeklyEditions,
 } from "@/db/schema";
+import type {
+  DisplaySong,
+  Song,
+  SongHistoryResult,
+  SongSearchField,
+  SongSortField,
+  SpotifyLinkSuggestion,
+} from "@/types";
 
 const HISTORY_PAGE_SIZE: number = 60;
 
@@ -33,16 +42,6 @@ async function getLatestEditionId(): Promise<string | undefined> {
 
   return latestEdition?.id;
 }
-
-type DisplaySong = {
-  id: string;
-  title: string;
-  artistName: string | null;
-  spotifyTrackId: string | null;
-  pendingSpotifyTrackId: string | null;
-  tier: "S" | "A" | "B" | "C" | "D" | "F";
-  owner: string;
-};
 
 async function getActiveSongs(
   latestEditionId: string,
@@ -59,6 +58,7 @@ async function getActiveSongs(
       pendingSpotifyTrackId: spotifyLinkSuggestions.spotifyTrackId,
       tier: songAppearances.tier,
       owner: participants.displayName,
+      lastAppearanceDate: weeklyEditions.editionDate,
     })
     .from(songAppearances)
     .innerJoin(songs, eq(songAppearances.songId, songs.id))
@@ -90,23 +90,9 @@ export async function getSongHistoryPage(
   query: string,
   requestedPage: number,
   useRegex = false,
-  searchField: "song" | "artist" = "song",
-  sortField: "song" | "artist" = "song",
-): Promise<{
-  songs: {
-    tier: "S" | "A" | "B" | "C" | "D" | "F" | null;
-    owner: string | null;
-    id: string;
-    title: string;
-    artistName: string | null;
-    spotifyTrackId: string | null;
-    pendingSpotifyTrackId: string | null;
-  }[];
-  total: number;
-  page: number;
-  pageCount: number;
-  pageSize: number;
-}> {
+  searchField: SongSearchField = "song",
+  sortField: SongSortField = "song",
+): Promise<SongHistoryResult> {
   const db: ReturnType<typeof getDb> = getDb();
   const normalizedQuery: string = query.trim();
   const filter: SQL<unknown> | undefined =
@@ -117,13 +103,33 @@ export async function getSongHistoryPage(
       : undefined;
   const regex: RegExp | undefined =
     normalizedQuery && useRegex ? new RegExp(normalizedQuery, "i") : undefined;
+  type HistorySong = Pick<
+    Song,
+    "id" | "title" | "artistName" | "spotifyTrackId"
+  > & { lastAppearanceDate: string | null };
+  // eslint-disable-next-line @typescript-eslint/typedef -- Drizzle preserves the subquery column types.
+  const lastAppearances = db
+    .select({
+      songId: songAppearances.songId,
+      lastAppearanceDate: max(weeklyEditions.editionDate).as(
+        "last_appearance_date",
+      ),
+    })
+    .from(songAppearances)
+    .innerJoin(
+      weeklyEditions,
+      eq(songAppearances.weeklyEditionId, weeklyEditions.id),
+    )
+    .groupBy(songAppearances.songId)
+    .as("last_appearances");
+  const historyOrder: SQL =
+    sortField === "artist"
+      ? sql`${songs.artistName} asc nulls last, ${songs.title} asc`
+      : sortField === "time"
+        ? sql`${lastAppearances.lastAppearanceDate} desc nulls last, ${songs.title} asc`
+        : sql`${songs.title} asc`;
   const regexMatches:
-    | {
-        id: string;
-        title: string;
-        artistName: string | null;
-        spotifyTrackId: string | null;
-      }[]
+    | HistorySong[]
     | undefined = regex
     ? (
         await db
@@ -132,13 +138,11 @@ export async function getSongHistoryPage(
             title: songs.title,
             artistName: songs.artistName,
             spotifyTrackId: songs.spotifyTrackId,
+            lastAppearanceDate: lastAppearances.lastAppearanceDate,
           })
           .from(songs)
-          .orderBy(
-            sortField === "artist"
-              ? sql`${songs.artistName} asc nulls last, ${songs.title} asc`
-              : songs.title,
-          )
+          .leftJoin(lastAppearances, eq(lastAppearances.songId, songs.id))
+          .orderBy(historyOrder)
       ).filter((song) =>
         regex.test(
           searchField === "artist" ? (song.artistName ?? "") : song.title,
@@ -151,12 +155,7 @@ export async function getSongHistoryPage(
   const total: number = countResult?.total ?? 0;
   const pageCount: number = Math.max(1, Math.ceil(total / HISTORY_PAGE_SIZE));
   const page: number = Math.min(Math.max(1, requestedPage), pageCount);
-  const historySongs: {
-    id: string;
-    title: string;
-    artistName: string | null;
-    spotifyTrackId: string | null;
-  }[] = regexMatches
+  const historySongs: HistorySong[] = regexMatches
     ? regexMatches.slice(
         (page - 1) * HISTORY_PAGE_SIZE,
         page * HISTORY_PAGE_SIZE,
@@ -167,14 +166,12 @@ export async function getSongHistoryPage(
           title: songs.title,
           artistName: songs.artistName,
           spotifyTrackId: songs.spotifyTrackId,
+          lastAppearanceDate: lastAppearances.lastAppearanceDate,
         })
         .from(songs)
+        .leftJoin(lastAppearances, eq(lastAppearances.songId, songs.id))
         .where(filter)
-        .orderBy(
-          sortField === "artist"
-            ? sql`${songs.artistName} asc nulls last, ${songs.title} asc`
-            : songs.title,
-        )
+        .orderBy(historyOrder)
         .limit(HISTORY_PAGE_SIZE)
         .offset((page - 1) * HISTORY_PAGE_SIZE);
 
@@ -189,24 +186,25 @@ export async function getSongHistoryPage(
   const activeBySongId: Map<string, DisplaySong> = new Map(
     activeSongs.map((song) => [song.id, song]),
   );
-  const pendingSuggestions: Array<{ songId: string; spotifyTrackId: string }> =
-    historySongs.length
-      ? await db
-          .select({
-            songId: spotifyLinkSuggestions.songId,
-            spotifyTrackId: spotifyLinkSuggestions.spotifyTrackId,
-          })
-          .from(spotifyLinkSuggestions)
-          .where(
-            and(
-              inArray(
-                spotifyLinkSuggestions.songId,
-                historySongs.map((song) => song.id),
-              ),
-              eq(spotifyLinkSuggestions.status, "pending"),
+  const pendingSuggestions: Array<
+    Pick<SpotifyLinkSuggestion, "songId" | "spotifyTrackId">
+  > = historySongs.length
+    ? await db
+        .select({
+          songId: spotifyLinkSuggestions.songId,
+          spotifyTrackId: spotifyLinkSuggestions.spotifyTrackId,
+        })
+        .from(spotifyLinkSuggestions)
+        .where(
+          and(
+            inArray(
+              spotifyLinkSuggestions.songId,
+              historySongs.map((song) => song.id),
             ),
-          )
-      : [];
+            eq(spotifyLinkSuggestions.status, "pending"),
+          ),
+        )
+    : [];
   const pendingBySongId: Map<string, string> = new Map(
     pendingSuggestions.map((suggestion) => [
       suggestion.songId,

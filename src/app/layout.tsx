@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppNav } from "@/components/app-nav";
 import { getCurrentUser } from "@/lib/auth";
+import type { LayoutProps } from "@/types";
 import "./globals.css";
 
 // eslint-disable-next-line @typescript-eslint/typedef -- The loader's inferred type retains the variable field.
@@ -21,11 +22,7 @@ export const metadata: Metadata = {
   description: "Songs, rankings, and history from Jimmy's Car.",
 };
 
-export default async function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default async function RootLayout({ children }: Readonly<LayoutProps>) {
   const user: Awaited<ReturnType<typeof getCurrentUser>> =
     await getCurrentUser();
 

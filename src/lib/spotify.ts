@@ -1,35 +1,20 @@
 import "server-only";
 
+import type {
+  SpotifyConfig,
+  SpotifyProfile,
+  SpotifyTokenResponse,
+  SpotifyTrackApiResponse,
+  SpotifyTrackMatch,
+  SpotifyTrackMetadata,
+  SpotifySearchResponse,
+} from "@/types";
+
 const spotifyAccountsUrl: string = "https://accounts.spotify.com";
 const spotifyApiUrl: string = "https://api.spotify.com/v1";
+let appAccessToken: { value: string; expiresAt: number } | null = null;
 
 export const spotifyScopes: string[] = ["user-read-private", "user-read-email"];
-
-type SpotifyConfig = {
-  clientId: string;
-  clientSecret: string;
-  redirectUri: string;
-};
-
-type SpotifyTokenResponse = {
-  access_token: string;
-  expires_in: number;
-  refresh_token?: string;
-  scope: string;
-  token_type: "Bearer";
-};
-
-export type SpotifyProfile = {
-  account_id?: string;
-  id: string;
-  display_name: string | null;
-  email?: string;
-  images: Array<{ url: string }>;
-};
-
-export type SpotifyTrackMetadata = {
-  artistName: string;
-};
 
 function getSpotifyConfig(): SpotifyConfig {
   const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } =
@@ -48,6 +33,8 @@ function getSpotifyConfig(): SpotifyConfig {
 }
 
 async function getSpotifyAppAccessToken(): Promise<string> {
+  if (appAccessToken && appAccessToken.expiresAt > Date.now() + 30_000)
+    return appAccessToken.value;
   const { clientId, clientSecret } = getSpotifyConfig();
   const credentials: string = Buffer.from(
     `${clientId}:${clientSecret}`,
@@ -64,7 +51,12 @@ async function getSpotifyAppAccessToken(): Promise<string> {
 
   if (!response.ok)
     throw new Error(`Spotify app token request failed (${response.status}).`);
-  return ((await response.json()) as SpotifyTokenResponse).access_token;
+  const token: SpotifyTokenResponse = await response.json();
+  appAccessToken = {
+    value: token.access_token,
+    expiresAt: Date.now() + token.expires_in * 1_000,
+  };
+  return token.access_token;
 }
 
 export function getSpotifyRedirectUri(): string {
@@ -150,7 +142,7 @@ export async function getSpotifyTrackMetadata(
     throw new Error(
       `Spotify track request failed (${response?.status ?? "no response"}).`,
     );
-  const track: { artists?: Array<{ name?: string }> } = await response.json();
+  const track: SpotifyTrackApiResponse = await response.json();
   const artistName: string =
     track.artists
       ?.map((artist) => artist.name?.trim())
@@ -158,5 +150,92 @@ export async function getSpotifyTrackMetadata(
       .join(", ") ?? "";
   if (!artistName)
     throw new Error("Spotify did not return an artist for that track.");
-  return { artistName };
+  if (!track.name?.trim())
+    throw new Error("Spotify did not return a title for that track.");
+  return { artistName, title: track.name.trim() };
+}
+
+function normalizeTitle(value: string): string {
+  return value
+    .toLocaleLowerCase()
+    .replace(/\b(remaster(?:ed)?|mono|stereo|version|edit|mix|live)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function titleScore(searchTitle: string, resultTitle: string): number {
+  const search: string = normalizeTitle(searchTitle);
+  const result: string = normalizeTitle(resultTitle);
+  if (search === result) return 1_000;
+  if (result.startsWith(search) || search.startsWith(result)) return 700;
+  if (result.includes(search) || search.includes(result)) return 500;
+  const searchWords: Set<string> = new Set(search.split(" ").filter(Boolean));
+  const resultWords: Set<string> = new Set(result.split(" ").filter(Boolean));
+  const overlap: number = [...searchWords].filter((word) => resultWords.has(word)).length;
+  return (overlap / Math.max(searchWords.size, resultWords.size, 1)) * 400;
+}
+
+export async function searchSpotifyTrackMatches(
+  title: string,
+  limit: number = 3,
+): Promise<SpotifyTrackMatch[]> {
+  const accessToken: string = await getSpotifyAppAccessToken();
+  const params: URLSearchParams = new URLSearchParams({
+    q: `track:${title}`,
+    type: "track",
+    limit: "10",
+  });
+  const response: Response = await fetch(`${spotifyApiUrl}/search?${params}`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+    cache: "no-store",
+  });
+  if (!response.ok)
+    throw new Error(`Spotify search failed (${response.status}).`);
+
+  const payload: SpotifySearchResponse = await response.json();
+  type RankedCandidate = {
+    track: SpotifyTrackApiResponse & { id: string; name: string };
+    artistKey: string;
+    score: number;
+  };
+  const candidates: RankedCandidate[] = (payload.tracks?.items ?? [])
+    .filter(
+      (track): track is SpotifyTrackApiResponse & { id: string; name: string } =>
+        Boolean(track.id && track.name && track.artists?.[0]?.name),
+    )
+    .map((track) => ({
+      track,
+      artistKey: (track.artists?.[0]?.name ?? "")
+        .trim()
+        .toLocaleLowerCase(),
+      score:
+        titleScore(title, track.name) +
+        (/\bremaster(?:ed)?\b/i.test(track.name) ? 25 : 0),
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  const byArtist: Map<string, (typeof candidates)[number]> = new Map();
+  for (const candidate of candidates) {
+    const existing: RankedCandidate | undefined = byArtist.get(
+      candidate.artistKey,
+    );
+    if (!existing || candidate.score > existing.score)
+      byArtist.set(candidate.artistKey, candidate);
+  }
+
+  return [...byArtist.values()]
+    .sort((left, right) => right.score - left.score)
+    .slice(0, limit)
+    .map(({ track }) => ({
+      id: track.id,
+      title: track.name,
+      artistName: track.artists!
+        .map((artist) => artist.name?.trim())
+        .filter(Boolean)
+        .join(", "),
+      spotifyUrl:
+        track.external_urls?.spotify ??
+        `https://open.spotify.com/track/${track.id}`,
+      imageUrl: track.album?.images?.[0]?.url ?? null,
+    }));
 }
