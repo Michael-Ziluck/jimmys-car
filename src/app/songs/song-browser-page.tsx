@@ -1,18 +1,12 @@
 import Link from "next/link";
 import { type FormEvent, useEffect } from "react";
-import { ArrowDownAZ, Music2, Regex, Search, UserRound, X } from "lucide-react";
+import { Music2, Regex, Search, UserRound, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+import { SortDropdown } from "@/components/sort-dropdown";
 import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type {
@@ -108,7 +102,7 @@ export function SongBrowserPage({
         </Button>
       </div>
 
-      <div className="sticky top-[4.25rem] z-20 -mx-2 mt-8 rounded-2xl border bg-background/95 p-2 shadow-sm backdrop-blur sm:top-[4.75rem]">
+      <div className="sticky top-[4.75rem] z-20 -mx-2 mt-8 rounded-2xl border bg-background/95 p-2 shadow-sm backdrop-blur sm:top-[5.25rem]">
         <div className="flex flex-col gap-2 lg:flex-row lg:items-center">
           <form
             onSubmit={submitSearch}
@@ -208,19 +202,16 @@ export function SongBrowserPage({
               </Button>
             ) : null}
           </form>
-          <div className="flex shrink-0 items-center gap-1.5 rounded-xl border border-input bg-card p-1">
-            <ArrowDownAZ className="ml-2 size-3.5 text-stone-500" aria-hidden="true" />
-            <Select value={sortField} onValueChange={(value) => onSortFieldChange(value as SongSortField)}>
-              <SelectTrigger className="h-10 min-w-36 rounded-lg border-0 bg-transparent shadow-none focus-visible:ring-0" aria-label="Sort songs">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent align="end">
-                <SelectItem value="time">Recently removed</SelectItem>
-                <SelectItem value="song">Song name</SelectItem>
-                <SelectItem value="artist">Artist name</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <SortDropdown<SongSortField>
+            value={sortField}
+            onValueChange={onSortFieldChange}
+            ariaLabel="Sort songs"
+            options={[
+              { value: "time", label: "Recently removed" },
+              { value: "song", label: "Song name" },
+              { value: "artist", label: "Artist name" },
+            ]}
+          />
         </div>
         {searchError ? (
           <p
