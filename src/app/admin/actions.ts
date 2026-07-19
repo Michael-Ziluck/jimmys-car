@@ -67,23 +67,6 @@ export async function approveSpotifySuggestion(
   revalidatePath("/songs/history");
 }
 
-export async function assignSpotifyMatch(
-  songId: string,
-  spotifyTrackId: string,
-): Promise<void> {
-  await requireAdmin();
-  const track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>> =
-    await getSpotifyTrackMetadata(spotifyTrackId);
-  await getDb()
-    .update(songs)
-    .set({ spotifyTrackId, artistName: track.artistName })
-    .where(and(eq(songs.id, songId), isNull(songs.spotifyTrackId)));
-  revalidatePath("/admin/matches");
-  revalidatePath("/admin/matches/history");
-  revalidatePath("/songs");
-  revalidatePath("/songs/history");
-}
-
 export async function promoteUserToAdmin(userId: string): Promise<void> {
   const admin: AppUser = await requireAdmin();
   if (admin.id === userId) throw new Error("Choose another registered user.");
