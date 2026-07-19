@@ -133,6 +133,7 @@ export async function getSpotifyTrackMetadata(
     const retryAfterSeconds: number = Number(
       response.headers.get("retry-after") ?? "1",
     );
+    if (retryAfterSeconds > 5) break;
     await new Promise((resolve) =>
       setTimeout(resolve, Math.max(retryAfterSeconds, 1) * 1_000),
     );

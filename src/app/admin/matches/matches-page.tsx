@@ -5,8 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SpotifyTrackMatch } from "@/types";
-import { assignSpotifyMatch } from "../actions";
+import { SpotifyEmbedDialog } from "@/app/songs/spotify-embed-dialog";
 import { MatchesSortSelect } from "./matches-sort-select";
+import { UseMatchButton } from "./use-match-button";
 
 export interface UnlinkedSongMatches {
   id: string;
@@ -79,13 +80,15 @@ export function MatchesPage({
                           <p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{match.artistName}</p>
                         </div>
                       </div>
-                      <div className="mt-4 flex items-center gap-2">
-                        <Button asChild variant="outline" size="sm" className="flex-1">
-                          <a href={match.spotifyUrl} target="_blank" rel="noreferrer">Listen</a>
-                        </Button>
-                        <form action={assignSpotifyMatch.bind(null, song.id, match.id)} className="flex-1">
-                          <Button type="submit" size="sm" className="w-full">Use match</Button>
-                        </form>
+                      <div className="mt-auto flex items-center gap-2 pt-4">
+                        <div className="flex-1 [&>button]:w-full">
+                          <SpotifyEmbedDialog trackId={match.id} songTitle={`${match.title} by ${match.artistName}`} />
+                        </div>
+                        <UseMatchButton
+                          songId={song.id}
+                          spotifyTrackId={match.id}
+                          artistName={match.artistName}
+                        />
                       </div>
                     </div>
                   ))}
