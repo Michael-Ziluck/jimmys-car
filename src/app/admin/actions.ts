@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
@@ -12,8 +12,17 @@ import {
   spotifyLinkSuggestions,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
+import { normalizeSongTitle } from "@/lib/song-title-matching";
 import { getSpotifyTrackMetadata } from "@/lib/spotify";
-import type { AppUser, ExtraLink, NewAppSetting, Song } from "@/types";
+import { parseSpotifyTrackId } from "@/lib/spotify-track-link";
+import type {
+  AppUser,
+  ExtraLink,
+  NewAppSetting,
+  Song,
+  SpotifyEditState,
+  SpotifyTrackPreview,
+} from "@/types";
 
 async function requireAdmin(): Promise<AppUser> {
   const user: AppUser | null = await getCurrentUser();
@@ -45,10 +54,25 @@ export async function approveSpotifySuggestion(
 
   const track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>> =
     await getSpotifyTrackMetadata(suggestion.spotifyTrackId);
+  const normalizedTitle: string = normalizeSongTitle(track.title);
+  const [existingTitle] = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(
+      and(
+        eq(songs.normalizedTitle, normalizedTitle),
+        ne(songs.id, suggestion.songId),
+      ),
+    )
+    .limit(1);
+
+  if (existingTitle) return;
 
   const linkedSongs: Array<Pick<Song, "id">> = await db
     .update(songs)
     .set({
+      title: track.title,
+      normalizedTitle,
       spotifyTrackId: suggestion.spotifyTrackId,
       artistName: track.artistName,
     })
@@ -63,8 +87,168 @@ export async function approveSpotifySuggestion(
     .where(eq(spotifyLinkSuggestions.id, suggestionId));
 
   revalidatePath("/admin");
+  revalidatePath("/admin/matches");
+  revalidatePath("/admin/matches/history");
   revalidatePath("/songs");
   revalidatePath("/songs/history");
+}
+
+async function songEditPreview(
+  songId: string,
+  submittedValue: string,
+): Promise<SpotifyEditState> {
+  await requireAdmin();
+  const trackId: string | undefined =
+    await parseSpotifyTrackId(submittedValue);
+  if (!trackId)
+    return {
+      status: "error",
+      message:
+        "Enter a 22-character Spotify track ID or Spotify track share link.",
+      before: null,
+      after: null,
+    };
+
+  const db: ReturnType<typeof getDb> = getDb();
+  const [song] = await db
+    .select({
+      id: songs.id,
+      title: songs.title,
+      artistName: songs.artistName,
+      spotifyTrackId: songs.spotifyTrackId,
+    })
+    .from(songs)
+    .where(eq(songs.id, songId))
+    .limit(1);
+  if (!song?.spotifyTrackId)
+    return {
+      status: "error",
+      message: "That song is no longer linked to Spotify.",
+      before: null,
+      after: null,
+    };
+  if (song.spotifyTrackId === trackId)
+    return {
+      status: "error",
+      message: "That is already this song's Spotify track.",
+      before: null,
+      after: null,
+    };
+
+  const [existingTrack] = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.spotifyTrackId, trackId), ne(songs.id, songId)))
+    .limit(1);
+  if (existingTrack)
+    return {
+      status: "error",
+      message: "That Spotify track is already linked to another song.",
+      before: null,
+      after: null,
+    };
+
+  let track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>>;
+  try {
+    track = await getSpotifyTrackMetadata(trackId);
+  } catch {
+    return {
+      status: "error",
+      message: "Spotify could not load metadata for that track.",
+      before: null,
+      after: null,
+    };
+  }
+  const normalizedTitle: string = normalizeSongTitle(track.title);
+  const [existingTitle] = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.normalizedTitle, normalizedTitle), ne(songs.id, songId)))
+    .limit(1);
+  if (existingTitle)
+    return {
+      status: "error",
+      message:
+        "That Spotify title already belongs to another song in the archive.",
+      before: null,
+      after: null,
+    };
+
+  const before: SpotifyTrackPreview = {
+    spotifyTrackId: song.spotifyTrackId,
+    title: song.title,
+    artistName: song.artistName,
+  };
+  const after: SpotifyTrackPreview = {
+    spotifyTrackId: trackId,
+    title: track.title,
+    artistName: track.artistName,
+  };
+  return { status: "preview", message: "", before, after };
+}
+
+export async function previewSpotifySongEdit(
+  songId: string,
+  _previousState: SpotifyEditState,
+  formData: FormData,
+): Promise<SpotifyEditState> {
+  const submittedValue: string =
+    formData.get("spotifyTrack")?.toString().trim() ?? "";
+  return songEditPreview(songId, submittedValue);
+}
+
+export async function confirmSpotifySongEdit(
+  songId: string,
+  expectedTrackId: string,
+  nextTrackId: string,
+): Promise<SpotifyEditState> {
+  const preview: SpotifyEditState = await songEditPreview(songId, nextTrackId);
+  if (
+    preview.status !== "preview" ||
+    !preview.before ||
+    !preview.after
+  )
+    return preview;
+  if (preview.before.spotifyTrackId !== expectedTrackId)
+    return {
+      status: "error",
+      message:
+        "This song changed after the confirmation was prepared. Review it again.",
+      before: null,
+      after: null,
+    };
+
+  const updatedSongs: Array<Pick<Song, "id">> = await getDb()
+    .update(songs)
+    .set({
+      title: preview.after.title,
+      normalizedTitle: normalizeSongTitle(preview.after.title),
+      artistName: preview.after.artistName,
+      spotifyTrackId: preview.after.spotifyTrackId,
+    })
+    .where(
+      and(
+        eq(songs.id, songId),
+        eq(songs.spotifyTrackId, expectedTrackId),
+      ),
+    )
+    .returning({ id: songs.id });
+  if (!updatedSongs.length)
+    return {
+      status: "error",
+      message:
+        "This song changed before the edit was saved. Review it again.",
+      before: null,
+      after: null,
+    };
+
+  revalidatePath("/songs");
+  revalidatePath("/songs/history");
+  return {
+    ...preview,
+    status: "success",
+    message: "Spotify track and metadata updated.",
+  };
 }
 
 export async function promoteUserToAdmin(userId: string): Promise<void> {

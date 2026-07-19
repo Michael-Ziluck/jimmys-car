@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { SpotifyTrackMatch } from "@/types";
 import { SpotifyEmbedDialog } from "@/app/songs/spotify-embed-dialog";
+import { SpotifyLinkDialog } from "@/app/songs/spotify-link-dialog";
 import { MatchesSortSelect } from "./matches-sort-select";
 import { UseMatchButton } from "./use-match-button";
 
@@ -60,11 +61,17 @@ export function MatchesPage({
       <div className="mt-4 grid gap-5">
         {songs.map((song) => (
           <Card key={song.id} className="rounded-2xl">
-            <CardHeader className="gap-2">
+            <CardHeader className="flex-row flex-wrap items-center justify-between gap-3">
               <div className="flex flex-wrap items-center gap-2">
                 <CardTitle>{song.title}</CardTitle>
                 {isHistory ? <Badge variant={song.current ? "default" : "secondary"}>{song.current ? "Current" : "Past"}</Badge> : null}
               </div>
+              <SpotifyLinkDialog
+                songId={song.id}
+                title={song.title}
+                pendingSpotifyTrackId={null}
+                isAdmin
+              />
             </CardHeader>
             <CardContent>
               {song.error ? (

@@ -16,6 +16,7 @@ const tierStyles: Record<Tier, string> = {
   D: "bg-sky-100 text-sky-800",
   F: "bg-violet-100 text-violet-800",
 };
+const ignoreSongChange = (): void => {};
 
 export function SongSearch({ songs, scopeLabel }: SongSearchProps) {
   const [query, setQuery] = useState("");
@@ -98,6 +99,8 @@ export function SongSearch({ songs, scopeLabel }: SongSearchProps) {
                     songId={song.id}
                     title={song.title}
                     pendingSpotifyTrackId={null}
+                    isAdmin={false}
+                    onSongChanged={ignoreSongChange}
                   />
                 )}
               </li>

@@ -20,6 +20,7 @@ import type {
   TierBadgeProps,
 } from "@/types";
 import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
+import { SpotifyEditDialog } from "./spotify-edit-dialog";
 import { SpotifyLinkDialog } from "./spotify-link-dialog";
 
 const tierStyles: Record<Tier, string> = {
@@ -96,19 +97,31 @@ function OwnerLabel({ owner }: OwnerLabelProps) {
   );
 }
 
-function SongAction({ song }: SongActionProps) {
+function SongAction({ song, isAdmin, onSongChanged }: SongActionProps) {
   return song.spotifyTrackId ? (
-    <SpotifyEmbedDialog trackId={song.spotifyTrackId} songTitle={song.title} />
+    <div className="flex items-center justify-end gap-1">
+      <SpotifyEmbedDialog trackId={song.spotifyTrackId} songTitle={song.title} />
+      {isAdmin ? (
+        <SpotifyEditDialog song={song} onSongChanged={onSongChanged} />
+      ) : null}
+    </div>
   ) : (
     <SpotifyLinkDialog
       songId={song.id}
       title={song.title}
       pendingSpotifyTrackId={song.pendingSpotifyTrackId}
+      isAdmin={isAdmin}
+      onSongChanged={onSongChanged}
     />
   );
 }
 
-export function SongResults({ songs, view }: SongResultsProps) {
+export function SongResults({
+  songs,
+  view,
+  isAdmin,
+  onSongChanged,
+}: SongResultsProps) {
   if (view === "list") {
     return (
       <Card className="overflow-hidden rounded-2xl py-0">
@@ -146,7 +159,11 @@ export function SongResults({ songs, view }: SongResultsProps) {
                   <TierBadge tier={song.tier} />
                 </div>
                 <div className="col-start-3 row-start-2 justify-self-end sm:col-start-4 sm:row-start-1">
-                  <SongAction song={song} />
+                  <SongAction
+                    song={song}
+                    isAdmin={isAdmin}
+                    onSongChanged={onSongChanged}
+                  />
                 </div>
               </li>
             ))}
@@ -189,7 +206,11 @@ export function SongResults({ songs, view }: SongResultsProps) {
           </CardHeader>
           <CardContent className="flex flex-1 flex-col justify-between gap-5">
             {song.owner ? <OwnerLabel owner={song.owner} /> : <span />}
-            <SongAction song={song} />
+            <SongAction
+              song={song}
+              isAdmin={isAdmin}
+              onSongChanged={onSongChanged}
+            />
           </CardContent>
         </Card>
       ))}

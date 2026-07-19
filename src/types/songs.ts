@@ -40,6 +40,7 @@ export interface DisplaySong {
 
 export interface SongSearchResult {
   songs: DisplaySong[];
+  isAdmin: boolean;
 }
 
 export interface SongFilterResult {
@@ -56,16 +57,22 @@ export interface LegacySongResult {
   owner: string | null;
 }
 
-export interface SongHistoryResult extends SongSearchResult {
+export interface SongHistoryPageData {
+  songs: DisplaySong[];
   total: number;
   page: number;
   pageCount: number;
   pageSize: number;
 }
 
+export interface SongHistoryResult extends SongHistoryPageData {
+  isAdmin: boolean;
+}
+
 export interface SongBrowserPageProps {
   scope: SongScope;
   songs: DisplaySong[] | null;
+  isAdmin: boolean;
   query: string;
   onQueryChange: (query: string) => void;
   countLabel: string | null;
@@ -129,6 +136,8 @@ export interface SongRequestState<T> {
 export interface SongResultsProps {
   songs: DisplaySong[];
   view: SongView;
+  isAdmin: boolean;
+  onSongChanged: () => void;
 }
 
 export interface TierBadgeProps {
@@ -142,6 +151,8 @@ export interface OwnerLabelProps {
 
 export interface SongActionProps {
   song: DisplaySong;
+  isAdmin: boolean;
+  onSongChanged: () => void;
 }
 
 export interface SongResultsSkeletonProps {
@@ -157,6 +168,26 @@ export interface SpotifyLinkDialogProps {
   songId: string;
   title: string;
   pendingSpotifyTrackId: string | null;
+  isAdmin: boolean;
+  onSongChanged?: () => void;
+}
+
+export interface SpotifyTrackPreview {
+  spotifyTrackId: string;
+  title: string;
+  artistName: string | null;
+}
+
+export interface SpotifyEditState {
+  status: "idle" | "preview" | "success" | "error";
+  message: string;
+  before: SpotifyTrackPreview | null;
+  after: SpotifyTrackPreview | null;
+}
+
+export interface SpotifyEditDialogProps {
+  song: DisplaySong;
+  onSongChanged: () => void;
 }
 
 export interface SpotifyEmbedDialogProps {
