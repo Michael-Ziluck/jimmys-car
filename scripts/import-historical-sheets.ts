@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 
 import { loadEnvConfig } from "@next/env";
-import { neon } from "@neondatabase/serverless";
-import { and, eq, inArray, isNull } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/neon-http";
+import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
+import { getDb } from "@/db";
 import {
   appSettings,
+  appUsers,
   participants,
   songAppearances,
   songs,
@@ -15,9 +15,18 @@ import {
   weeklyEditions,
 } from "@/db/schema";
 import { HISTORICAL_SHEET_SOURCES } from "@/lib/historical-sheets";
+import {
+  decryptSpotifyRefreshToken,
+  encryptSpotifyRefreshToken,
+  refreshSpotifyUserToken,
+} from "@/lib/spotify-token";
 import type {
   HistoricalImportAppearance as Appearance,
   HistoricalImportEdition as Edition,
+  HistoricalImportLogLevel,
+  HistoricalImportOptions,
+  HistoricalImportProgressEvent,
+  HistoricalImportResult,
   ImportedScoreEntry as ScoreEntry,
   ImportedSpotifyTrack as SpotifyTrack,
   ParticipantColumn,
@@ -41,9 +50,30 @@ const INSERT_CHUNK_SIZE = 250;
 const TIERS: Tier[] = ["S", "A", "B", "C", "D", "F"];
 const CURRENT_PLAYLIST_ID = "5b4hdpNWm9Nu1Y5i7w5eKY";
 
-function normalize(value: string) {
-  return normalizeSongTitle(value);
+type ReportProgress = (
+  message: string,
+  progress: number,
+  level?: HistoricalImportLogLevel,
+) => void;
+
+function createProgressReporter(
+  onProgress?: HistoricalImportOptions["onProgress"],
+): ReportProgress {
+  return (message, progress, level = "info") => {
+    const event: HistoricalImportProgressEvent = {
+      type: "progress",
+      progress: Math.max(0, Math.min(100, Math.round(progress))),
+      message,
+      level,
+      timestamp: new Date().toISOString(),
+    };
+    if (level === "warning") console.warn(message);
+    else console.log(message);
+    onProgress?.(event);
+  };
 }
+
+const normalize = normalizeSongTitle;
 
 function stableId(prefix: string, value: string) {
   return `${prefix}_${createHash("sha256").update(value).digest("hex")}`;
@@ -208,13 +238,13 @@ function parseScoreLedger(rows: unknown[][]): ScoreEntry[] {
     .map((score, index) => ({ ...score, rank: index + 1 }));
 }
 
-async function fetchWorkbook(spreadsheetId: string) {
+async function fetchWorkbook(spreadsheetId: string, title: string) {
   const response = await fetch(
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=xlsx`,
   );
   if (!response.ok) {
     throw new Error(
-      `Could not download ${spreadsheetId}: ${response.status} ${response.statusText}`,
+      `Google Sheets could not download "${title}" (${response.status} ${response.statusText}). No database records were changed.`,
     );
   }
   return XLSX.read(await response.arrayBuffer(), {
@@ -223,16 +253,26 @@ async function fetchWorkbook(spreadsheetId: string) {
   });
 }
 
-async function fetchLiveWorksheet(spreadsheetId: string, gid: string) {
+async function fetchLiveWorksheet(
+  spreadsheetId: string,
+  gid: string,
+  title: string,
+  tabName: string,
+) {
   const response = await fetch(
     `https://docs.google.com/spreadsheets/d/${spreadsheetId}/export?format=csv&gid=${gid}`,
   );
   if (!response.ok)
-    throw new Error(`Could not download live worksheet ${gid}.`);
+    throw new Error(
+      `Google Sheets could not download the live ${tabName} worksheet from "${title}" (${response.status} ${response.statusText}). No database records were changed.`,
+    );
   const workbook = XLSX.read(await response.text(), { type: "string" });
   const sheetName = workbook.SheetNames[0];
   const sheet = sheetName ? workbook.Sheets[sheetName] : undefined;
-  if (!sheet) throw new Error(`Could not parse live worksheet ${gid}.`);
+  if (!sheet)
+    throw new Error(
+      `The live ${tabName} worksheet from "${title}" downloaded, but its rows could not be read. No database records were changed.`,
+    );
   return XLSX.utils.sheet_to_json<unknown[]>(sheet, {
     header: 1,
     defval: "",
@@ -249,135 +289,148 @@ function tierCounts(appearances: Appearance[]) {
   ) as Record<Tier, number>;
 }
 
-async function getSpotifyAccessToken() {
-  const clientId = process.env["SPOTIFY_CLIENT_ID"];
-  const clientSecret = process.env["SPOTIFY_CLIENT_SECRET"];
-  if (!clientId || !clientSecret) return undefined;
+type SpotifyRefreshCredential = {
+  userId: string | null;
+  refreshToken: string;
+};
 
-  const refreshToken = process.env["SPOTIFY_REFRESH_TOKEN"];
-  const response = await fetch("https://accounts.spotify.com/api/token", {
-    method: "POST",
-    headers: {
-      Authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString("base64")}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
-    body: new URLSearchParams(
-      refreshToken
-        ? { grant_type: "refresh_token", refresh_token: refreshToken }
-        : { grant_type: "client_credentials" },
-    ),
-  });
-  if (!response.ok) return undefined;
-  return ((await response.json()) as { access_token: string }).access_token;
-}
-
-async function fetchCurrentPlaylist() {
-  const accessToken = await getSpotifyAccessToken();
-  if (!accessToken) {
-    console.warn(
-      "Skipped Spotify resolution: Spotify credentials are not configured or could not be refreshed.",
+async function fetchCurrentPlaylist(
+  report: ReportProgress,
+  credentials: SpotifyRefreshCredential[],
+  saveRotatedToken: (userId: string, refreshToken: string) => Promise<void>,
+) {
+  if (!credentials.length) {
+    report(
+      "Skipped Spotify resolution: no playlist-capable Spotify account is linked. Link Spotify as the playlist owner or a collaborator.",
+      54,
+      "warning",
     );
     return [];
   }
 
-  const tracks: SpotifyTrack[] = [];
-  let nextUrl: string | null =
-    `https://api.spotify.com/v1/playlists/${CURRENT_PLAYLIST_ID}/items?limit=50&market=US`;
-  while (nextUrl) {
-    const response = await fetch(nextUrl, {
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
-    if (!response.ok) {
-      console.warn(
-        `Skipped Spotify resolution: playlist access returned ${response.status}. ` +
-          "Set SPOTIFY_REFRESH_TOKEN from the playlist owner or a collaborator.",
-      );
-      return [];
+  let lastStatus: number | null = null;
+  for (const credential of credentials) {
+    const token = await refreshSpotifyUserToken(credential.refreshToken);
+    if (!token) continue;
+    if (credential.userId && token.refresh_token) {
+      await saveRotatedToken(credential.userId, token.refresh_token);
     }
-    const page: SpotifyPlaylistPage =
-      (await response.json()) as SpotifyPlaylistPage;
-    for (const entry of page.items) {
-      const track = entry.item ?? entry.track;
-      if (!track?.id || !track.name) continue;
-      tracks.push({
-        id: track.id,
-        name: track.name,
-        artistName:
-          track.artists?.map((artist) => artist.name).join(", ") ?? "",
+
+    const tracks: SpotifyTrack[] = [];
+    let nextUrl: string | null =
+      `https://api.spotify.com/v1/playlists/${CURRENT_PLAYLIST_ID}/items?limit=50&market=US`;
+    let canReadPlaylist: boolean = true;
+    while (nextUrl) {
+      const response = await fetch(nextUrl, {
+        headers: { Authorization: `Bearer ${token.access_token}` },
       });
+      if (!response.ok) {
+        lastStatus = response.status;
+        canReadPlaylist = false;
+        break;
+      }
+      const page: SpotifyPlaylistPage =
+        (await response.json()) as SpotifyPlaylistPage;
+      for (const entry of page.items) {
+        const track = entry.item ?? entry.track;
+        if (!track?.id || !track.name) continue;
+        tracks.push({
+          id: track.id,
+          name: track.name,
+          artistName:
+            track.artists?.map((artist) => artist.name).join(", ") ?? "",
+        });
+      }
+      nextUrl = page.next;
     }
-    nextUrl = page.next;
+    if (canReadPlaylist) return tracks;
   }
-  return tracks;
+
+  report(
+    `Skipped Spotify resolution: no linked Spotify account could read the playlist${lastStatus ? ` (last response ${lastStatus})` : ""}. Re-link Spotify as the playlist owner or a collaborator.`,
+    54,
+    "warning",
+  );
+  return [];
 }
 
 function uniqueSpotifyMatches(tracks: SpotifyTrack[]) {
-  const grouped = new Map<string, SpotifyTrack[]>();
+  const tracksByTitle = new Map<string, SpotifyTrack[]>();
   for (const track of tracks) {
     const key = songTitleMatchKey(track.name);
-    grouped.set(key, [...(grouped.get(key) ?? []), track]);
+    const matches = tracksByTitle.get(key);
+    if (matches) matches.push(track);
+    else tracksByTitle.set(key, [track]);
   }
-  return new Map(
-    [...grouped].flatMap(([key, matches]) =>
-      new Map(matches.map((track) => [track.id, track])).size === 1
-        ? [[key, matches[0]] as const]
-        : [],
-    ),
-  );
+
+  const uniqueMatches = new Map<string, SpotifyTrack>();
+  for (const [title, matches] of tracksByTitle) {
+    if (new Set(matches.map((track) => track.id)).size === 1) {
+      uniqueMatches.set(title, matches[0]!);
+    }
+  }
+  return uniqueMatches;
 }
 
-async function parseAllEditions() {
+async function parseAllEditions(report: ReportProgress) {
   const editions: Edition[] = [];
-  for (const source of HISTORICAL_SHEET_SOURCES) {
-    console.log(`Downloading ${source.title}…`);
-    const workbook = await fetchWorkbook(source.id);
+  for (const [sourceIndex, source] of HISTORICAL_SHEET_SOURCES.entries()) {
+    const sourceStartProgress =
+      5 + (sourceIndex / HISTORICAL_SHEET_SOURCES.length) * 40;
+    report(
+      `Downloading workbook ${sourceIndex + 1} of ${HISTORICAL_SHEET_SOURCES.length}: ${source.title}.`,
+      sourceStartProgress,
+    );
+    const workbook = await fetchWorkbook(source.id, source.title);
     const tabs = workbook.SheetNames.filter((name) =>
       EXPORTED_EDITION_TAB.test(name),
     );
+    report(
+      `Downloaded ${source.title}; found ${tabs.length} historical worksheets to read.`,
+      sourceStartProgress + 2,
+    );
     let upperBound = new Date(`${source.latestEditionDate}T00:00:00.000Z`);
+    const latestTabName = tabLabel(upperBound);
 
     for (const [sourceTabIndex, exportedTabName] of tabs.entries()) {
       const editionDate = inferDate(exportedTabName, upperBound);
       const sourceTabName = tabLabel(editionDate);
       upperBound = new Date(editionDate);
       upperBound.setUTCDate(upperBound.getUTCDate() - 1);
-      const rows =
-        sourceTabName === "7/19" && "latestSheetGid" in source
-          ? await fetchLiveWorksheet(source.id, source.latestSheetGid)
-          : XLSX.utils.sheet_to_json<unknown[]>(
-              workbook.Sheets[exportedTabName] ??
-                (() => {
-                  throw new Error(`Missing worksheet ${exportedTabName}.`);
-                })(),
-              {
-                header: 1,
-                defval: "",
-                raw: false,
-              },
-            );
-      const appearances = parseWorksheet(rows);
-      const expectedTierCounts = source.latestExpectedTierCounts;
-      if (
-        expectedTierCounts &&
-        sourceTabName ===
-          tabLabel(new Date(`${source.latestEditionDate}T00:00:00.000Z`))
-      ) {
-        const actualCounts = tierCounts(appearances);
-        const mismatches = TIERS.filter(
-          (tier) => actualCounts[tier] !== expectedTierCounts[tier],
+      const sheet = workbook.Sheets[exportedTabName];
+      if (!sheet) throw new Error(`Missing worksheet ${exportedTabName}.`);
+
+      let rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, {
+        header: 1,
+        defval: "",
+        raw: false,
+      });
+      if (sourceTabName === latestTabName && source.latestSheetGid) {
+        report(
+          `Reading the live ${sourceTabName} worksheet from ${source.title} so the newest tier list is not taken from a stale workbook export.`,
+          sourceStartProgress + 3,
         );
-        if (mismatches.length) {
-          throw new Error(
-            `${source.title} / ${sourceTabName} tier validation failed: expected ${JSON.stringify(expectedTierCounts)}, received ${JSON.stringify(actualCounts)}.`,
-          );
-        }
-        console.log(
-          `Validated ${source.title} / ${sourceTabName}: ${TIERS.map((tier) => `${tier}=${actualCounts[tier]}`).join(", ")} (${appearances.length} placements).`,
+        rows = await fetchLiveWorksheet(
+          source.id,
+          source.latestSheetGid,
+          source.title,
+          sourceTabName,
+        );
+      }
+      const appearances = parseWorksheet(rows);
+      if (sourceTabName === latestTabName) {
+        const actualCounts = tierCounts(appearances);
+        report(
+          `Read the newest ${sourceTabName} tier list: ${appearances.length} songs across ${TIERS.map((tier) => `${tier} ${actualCounts[tier]}`).join(", ")}. Changes to both the song total and tier assignments are expected and do not block the import.`,
+          sourceStartProgress + 4,
+          "success",
         );
       }
       if (!appearances.length) {
-        console.warn(
-          `Skipped ${source.title} / ${sourceTabName}: no tier placements found.`,
+        report(
+          `Skipped ${source.title}, worksheet ${sourceTabName}, because it contained no tier placements.`,
+          sourceStartProgress + 4,
+          "warning",
         );
         continue;
       }
@@ -392,18 +445,22 @@ async function parseAllEditions() {
         scores: parseScoreLedger(rows),
       });
     }
+    report(
+      `Finished ${source.title}: read ${tabs.length} worksheet snapshots.`,
+      5 + ((sourceIndex + 1) / HISTORICAL_SHEET_SOURCES.length) * 40,
+      "success",
+    );
   }
 
+  const sourcePriority = new Map(
+    HISTORICAL_SHEET_SOURCES.map((source) => [source.id, source.priority]),
+  );
   const canonicalByDate = new Map<string, Edition>();
   for (const edition of editions) {
-    const priority = HISTORICAL_SHEET_SOURCES.find(
-      (source) => source.id === edition.sourceSpreadsheetId,
-    )!.priority;
+    const priority = sourcePriority.get(edition.sourceSpreadsheetId) ?? 0;
     const current = canonicalByDate.get(edition.editionDate);
     const currentPriority = current
-      ? HISTORICAL_SHEET_SOURCES.find(
-          (source) => source.id === current.sourceSpreadsheetId,
-        )!.priority
+      ? (sourcePriority.get(current.sourceSpreadsheetId) ?? 0)
       : -1;
     if (priority > currentPriority)
       canonicalByDate.set(edition.editionDate, edition);
@@ -420,20 +477,32 @@ function chunk<T>(items: T[], size = INSERT_CHUNK_SIZE) {
   );
 }
 
-async function main() {
+export async function runHistoricalImport(
+  options: HistoricalImportOptions = {},
+): Promise<HistoricalImportResult> {
   loadEnvConfig(process.cwd());
+  const report = createProgressReporter(options.onProgress);
+  report("Starting the historical sheet re-import.", 1);
   const databaseUrl = process.env["DATABASE_URL"];
   if (!databaseUrl)
-    throw new Error("DATABASE_URL is required to import historical sheets.");
+    throw new Error(
+      "The import cannot connect to the database because DATABASE_URL is not configured.",
+    );
 
-  const db = drizzle({ client: neon(databaseUrl) });
-  const editions = await parseAllEditions();
+  const db = getDb();
+  const editions = await parseAllEditions(report);
+  report(
+    `Finished reading Google Sheets: ${editions.length} source snapshots are ready to save.`,
+    48,
+    "success",
+  );
   const latestCanonicalEdition = editions
     .filter((edition) => edition.isCanonical)
     .sort((left, right) =>
       right.editionDate.localeCompare(left.editionDate),
     )[0];
   if (latestCanonicalEdition?.scores.length) {
+    report("Updating the leaderboard from the newest score ledger.", 51);
     await db
       .insert(appSettings)
       .values({
@@ -455,17 +524,57 @@ async function main() {
         },
       });
   }
-  const currentTitleCounts: Map<string, number> = new Map();
-  const currentTitles: Set<string> = new Set(
-    latestCanonicalEdition?.appearances.map((appearance) =>
-      normalize(appearance.songTitle),
-    ) ?? [],
-  );
-  for (const title of currentTitles) {
-    const key: string = songTitleMatchKey(title);
+  const currentTitleCounts = new Map<string, number>();
+  for (const appearance of latestCanonicalEdition?.appearances ?? []) {
+    const key = songTitleMatchKey(appearance.songTitle);
     currentTitleCounts.set(key, (currentTitleCounts.get(key) ?? 0) + 1);
   }
-  const playlistTracks = await fetchCurrentPlaylist();
+  report("Checking the current Spotify playlist for exact title matches.", 54);
+  const storedSpotifyCredentials = await db
+    .select({
+      userId: appUsers.id,
+      ciphertext: appUsers.spotifyRefreshTokenCiphertext,
+    })
+    .from(appUsers)
+    .where(isNotNull(appUsers.spotifyRefreshTokenCiphertext));
+  const spotifyCredentials: SpotifyRefreshCredential[] = [];
+  for (const credential of storedSpotifyCredentials) {
+    if (!credential.ciphertext) continue;
+    try {
+      spotifyCredentials.push({
+        userId: credential.userId,
+        refreshToken: decryptSpotifyRefreshToken(credential.ciphertext),
+      });
+    } catch {
+      // Ignore unreadable legacy credentials and allow another linked account.
+    }
+  }
+  const environmentRefreshToken = process.env["SPOTIFY_REFRESH_TOKEN"];
+  if (
+    environmentRefreshToken &&
+    !spotifyCredentials.some(
+      (credential) => credential.refreshToken === environmentRefreshToken,
+    )
+  ) {
+    spotifyCredentials.push({
+      userId: null,
+      refreshToken: environmentRefreshToken,
+    });
+  }
+  const playlistTracks = await fetchCurrentPlaylist(
+    report,
+    spotifyCredentials,
+    async (userId, refreshToken) => {
+      await db
+        .update(appUsers)
+        .set({
+          spotifyRefreshTokenCiphertext:
+            encryptSpotifyRefreshToken(refreshToken),
+          updatedAt: new Date(),
+        })
+        .where(eq(appUsers.id, userId));
+    },
+  );
   const spotifyMatches = uniqueSpotifyMatches(playlistTracks);
   const allAppearances = editions.flatMap((edition) => edition.appearances);
   const participantRows = [
@@ -506,6 +615,7 @@ async function main() {
     ).values(),
   ];
 
+  report("Saving workbook sources to the database.", 60);
   for (const source of HISTORICAL_SHEET_SOURCES) {
     await db
       .insert(sourceSpreadsheets)
@@ -523,11 +633,17 @@ async function main() {
         },
       });
   }
+  report(`Saving ${participantRows.length} participants.`, 64);
   for (const values of chunk(participantRows))
     await db.insert(participants).values(values).onConflictDoNothing();
+  report(`Saving ${songRows.length} unique song titles.`, 68);
   for (const values of chunk(songRows))
     await db.insert(songs).values(values).onConflictDoNothing();
   const resolvedSongRows = songRows.filter((row) => row.spotifyTrackId);
+  report(
+    `Preserving existing Spotify links and adding ${resolvedSongRows.length} safe exact-title matches.`,
+    72,
+  );
   for (const row of resolvedSongRows) {
     await db
       .update(songs)
@@ -535,11 +651,18 @@ async function main() {
         artistName: row.artistName,
         spotifyTrackId: row.spotifyTrackId,
       })
-      .where(and(eq(songs.id, row.id), isNull(songs.spotifyTrackId)));
+      .where(
+        and(
+          eq(songs.normalizedTitle, row.normalizedTitle),
+          isNull(songs.spotifyTrackId),
+        ),
+      );
   }
   if (playlistTracks.length) {
-    console.log(
+    report(
       `Resolved ${resolvedSongRows.length} current titles from ${playlistTracks.length} Spotify playlist tracks.`,
+      75,
+      "success",
     );
   }
   const editionRows = editions.map((edition) => ({
@@ -550,6 +673,7 @@ async function main() {
     editionDate: edition.editionDate,
     isCanonical: edition.isCanonical,
   }));
+  report(`Saving ${editionRows.length} weekly edition snapshots.`, 78);
   for (const values of chunk(editionRows)) {
     await db
       .insert(weeklyEditions)
@@ -562,16 +686,41 @@ async function main() {
         set: { importedAt: new Date() },
       });
   }
-  for (const editionIds of chunk(editions.map((edition) => edition.id))) {
-    await db
-      .delete(songAppearances)
-      .where(inArray(songAppearances.weeklyEditionId, editionIds));
+  const participantIds = new Map<string, string>();
+  for (const normalizedNames of chunk(
+    participantRows.map((row) => row.normalizedName),
+  )) {
+    const storedParticipants = await db
+      .select({ id: participants.id, normalizedName: participants.normalizedName })
+      .from(participants)
+      .where(inArray(participants.normalizedName, normalizedNames));
+    storedParticipants.forEach((row) => {
+      participantIds.set(row.normalizedName, row.id);
+    });
   }
-
-  const participantIds = new Map(
-    participantRows.map((row) => [row.normalizedName, row.id]),
-  );
-  const songIds = new Map(songRows.map((row) => [row.normalizedTitle, row.id]));
+  const songIds = new Map<string, string>();
+  for (const normalizedTitles of chunk(
+    songRows.map((row) => row.normalizedTitle),
+  )) {
+    const storedSongs = await db
+      .select({ id: songs.id, normalizedTitle: songs.normalizedTitle })
+      .from(songs)
+      .where(inArray(songs.normalizedTitle, normalizedTitles));
+    storedSongs.forEach((row) => {
+      songIds.set(row.normalizedTitle, row.id);
+    });
+  }
+  const missingParticipantCount = participantRows.filter(
+    (row) => !participantIds.has(row.normalizedName),
+  ).length;
+  const missingSongCount = songRows.filter(
+    (row) => !songIds.has(row.normalizedTitle),
+  ).length;
+  if (missingParticipantCount || missingSongCount) {
+    throw new Error(
+      `The database could not resolve ${missingParticipantCount} participants and ${missingSongCount} songs after saving them. Existing placements were not removed.`,
+    );
+  }
   const appearanceRows = editions.flatMap((edition) =>
     edition.appearances.map((appearance) => ({
       weeklyEditionId: edition.id,
@@ -582,9 +731,27 @@ async function main() {
       sourceColumnIndex: appearance.sourceColumnIndex,
     })),
   );
-  for (const values of chunk(appearanceRows))
+  report("Removing the previous placements for these imported editions.", 82);
+  for (const editionIds of chunk(editions.map((edition) => edition.id))) {
+    await db
+      .delete(songAppearances)
+      .where(inArray(songAppearances.weeklyEditionId, editionIds));
+  }
+  const appearanceChunks = chunk(appearanceRows);
+  for (const [chunkIndex, values] of appearanceChunks.entries()) {
     await db.insert(songAppearances).values(values);
+    if (
+      chunkIndex === appearanceChunks.length - 1 ||
+      (chunkIndex + 1) % 20 === 0
+    ) {
+      report(
+        `Saved ${Math.min((chunkIndex + 1) * INSERT_CHUNK_SIZE, appearanceRows.length).toLocaleString()} of ${appearanceRows.length.toLocaleString()} tier placements.`,
+        84 + ((chunkIndex + 1) / appearanceChunks.length) * 11,
+      );
+    }
+  }
 
+  report("Marking the authoritative edition for each date.", 96);
   await db.update(weeklyEditions).set({ isCanonical: false });
   for (const ids of chunk(
     editions
@@ -596,12 +763,33 @@ async function main() {
       .set({ isCanonical: true })
       .where(inArray(weeklyEditions.id, ids));
   }
-  console.log(
+  report(
     `Imported ${editions.length} source snapshots, ${participantRows.length} participants, ${songRows.length} title records, and ${appearanceRows.length} tier placements.`,
+    100,
+    "success",
   );
+  return {
+    sourceSnapshots: editions.length,
+    participants: participantRows.length,
+    titleRecords: songRows.length,
+    tierPlacements: appearanceRows.length,
+    resolvedSpotifyTitles: resolvedSongRows.length,
+    playlistTracks: playlistTracks.length,
+  };
 }
 
-void main().catch((error: unknown) => {
-  console.error(error);
-  process.exitCode = 1;
-});
+const entrypoint: string = process.argv[1]?.replace(/\\/g, "/") ?? "";
+if (entrypoint.endsWith("/scripts/import-historical-sheets.ts")) {
+  void runHistoricalImport().catch((error: unknown) => {
+    const cause: unknown =
+      error instanceof Error && "cause" in error ? error.cause : undefined;
+    console.error(
+      cause instanceof Error
+        ? `Import stopped: ${cause.message}`
+        : error instanceof Error
+          ? `Import stopped: ${error.message}`
+        : "Import stopped because of an unexpected error.",
+    );
+    process.exitCode = 1;
+  });
+}
