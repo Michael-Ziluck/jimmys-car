@@ -24,7 +24,6 @@ export const HISTORICAL_SHEET_SOURCES: readonly HistoricalSheetSource[] = [
     title: "Jimmy's Car Tier List (years 7 and 8)",
     latestEditionDate: "2026-07-19",
     latestSheetGid: "816189057",
-    latestExpectedTierCounts: { S: 1, A: 29, B: 41, C: 44, D: 19, F: 8 },
     priority: 4,
   },
 ] as const;

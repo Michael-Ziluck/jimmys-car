@@ -86,7 +86,49 @@ export interface HistoricalSheetSource {
   id: string;
   title: string;
   latestEditionDate: string;
-  latestExpectedTierCounts?: Record<Tier, number>;
   priority: 1 | 2 | 3 | 4;
   latestSheetGid?: string;
+}
+
+export interface HistoricalImportResult {
+  sourceSnapshots: number;
+  participants: number;
+  titleRecords: number;
+  tierPlacements: number;
+  resolvedSpotifyTitles: number;
+  playlistTracks: number;
+}
+
+export type HistoricalImportLogLevel = "info" | "warning" | "success";
+
+export interface HistoricalImportProgressEvent {
+  type: "progress";
+  progress: number;
+  message: string;
+  level: HistoricalImportLogLevel;
+  timestamp: string;
+}
+
+export interface HistoricalImportCompleteEvent {
+  type: "complete";
+  progress: 100;
+  message: string;
+  result: HistoricalImportResult;
+  timestamp: string;
+}
+
+export interface HistoricalImportErrorEvent {
+  type: "error";
+  progress: number;
+  message: string;
+  timestamp: string;
+}
+
+export type HistoricalImportStreamEvent =
+  | HistoricalImportProgressEvent
+  | HistoricalImportCompleteEvent
+  | HistoricalImportErrorEvent;
+
+export interface HistoricalImportOptions {
+  onProgress?: (event: HistoricalImportProgressEvent) => void;
 }

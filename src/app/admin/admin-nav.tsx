@@ -10,6 +10,7 @@ const links: NavigationLink[] = [
   { href: "/admin", label: "Song review" },
   { href: "/admin/matches", label: "Potential matches" },
   { href: "/admin/users", label: "People" },
+  { href: "/admin/imports", label: "Imports" },
   { href: "/admin/links", label: "Links" },
 ];
 
