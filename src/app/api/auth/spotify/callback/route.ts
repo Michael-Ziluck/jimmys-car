@@ -10,6 +10,7 @@ import {
   getSpotifyProfile,
   getSpotifyRedirectUri,
 } from "@/lib/spotify";
+import { encryptSpotifyRefreshToken } from "@/lib/spotify-token";
 import { setErrorFlash, setSuccessFlash } from "@/lib/flash";
 import type { AppUser, SpotifyProfile, SpotifyTokenResponse } from "@/types";
 import { stateCookieName } from "../route";
@@ -49,6 +50,9 @@ export async function GET(request: Request): Promise<NextResponse<unknown>> {
       return response;
     }
     const token: SpotifyTokenResponse = await exchangeSpotifyCode(code);
+    if (!token.refresh_token) {
+      throw new Error("Spotify did not return a refresh token.");
+    }
     const profile: SpotifyProfile = await getSpotifyProfile(token.access_token);
     const spotifyAccountId: string = profile.account_id ?? profile.id;
     const [linkedUser] = await getDb()
@@ -76,6 +80,9 @@ export async function GET(request: Request): Promise<NextResponse<unknown>> {
         spotifyAccountId,
         spotifyDisplayName: profile.display_name,
         spotifyImageUrl: profile.images[0]?.url ?? null,
+        spotifyRefreshTokenCiphertext: encryptSpotifyRefreshToken(
+          token.refresh_token,
+        ),
         claimedParticipantId:
           user.claimedParticipantId ?? assignedParticipant?.id ?? null,
         updatedAt: new Date(),

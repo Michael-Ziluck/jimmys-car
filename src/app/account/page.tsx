@@ -194,14 +194,18 @@ export default function AccountPage() {
                 <p className="font-semibold">
                   {data.user.spotifyDisplayName ?? "Connected Spotify account"}
                 </p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="mt-3"
-                  onClick={() => update({ action: "disconnect-spotify" })}
-                >
-                  Disconnect
-                </Button>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button asChild variant="outline" size="sm">
+                    <a href="/api/auth/spotify">Reconnect</a>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => update({ action: "disconnect-spotify" })}
+                  >
+                    Disconnect
+                  </Button>
+                </div>
               </>
             ) : (
               <Button asChild className="bg-[#1ed760] text-stone-950">

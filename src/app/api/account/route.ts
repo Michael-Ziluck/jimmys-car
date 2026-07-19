@@ -35,7 +35,13 @@ export async function GET(): Promise<Response> {
         .orderBy(asc(participants.displayName));
 
   return Response.json({
-    user,
+    user: {
+      discordUsername: user.discordUsername,
+      discordDisplayName: user.discordDisplayName,
+      spotifyAccountId: user.spotifyAccountId,
+      spotifyDisplayName: user.spotifyDisplayName,
+      songView: user.songView,
+    },
     claimedParticipant: claimedParticipant[0] ?? null,
     claimableParticipants,
   });
@@ -56,6 +62,7 @@ export async function PATCH(request: Request): Promise<Response> {
         spotifyAccountId: null,
         spotifyDisplayName: null,
         spotifyImageUrl: null,
+        spotifyRefreshTokenCiphertext: null,
         updatedAt: new Date(),
       })
       .where(eq(appUsers.id, user.id));
