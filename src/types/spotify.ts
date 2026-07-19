@@ -85,7 +85,9 @@ export interface SpotifyEmbedData {
 
 export interface SpotifyEmbedController {
   destroy: () => void;
+  loadEntity: (spotifyUriOrUrl: string) => void;
   pause: () => void;
+  play: () => void;
 }
 
 export interface SpotifyIframeApi {

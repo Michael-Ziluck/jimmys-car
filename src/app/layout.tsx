@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AppNav } from "@/components/app-nav";
+import { SpotifyPlayerProvider } from "@/components/spotify-player-provider";
 import { getCurrentUser } from "@/lib/auth";
 import type { LayoutProps } from "@/types";
 import "./globals.css";
@@ -41,7 +42,7 @@ export default async function RootLayout({ children }: Readonly<LayoutProps>) {
         <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-white/90 backdrop-blur-md">
           <AppNav isAdmin={user?.role === "admin"} />
         </header>
-        {children}
+        <SpotifyPlayerProvider>{children}</SpotifyPlayerProvider>
       </body>
     </html>
   );

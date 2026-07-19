@@ -117,14 +117,14 @@ export function SongResults({ songs, view }: SongResultsProps) {
             {songs.map((song) => (
               <li
                 key={song.id}
-                className="group grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto] sm:px-5"
+                className="group grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto] sm:px-5"
               >
                 <SongArtwork
                   trackId={song.spotifyTrackId}
                   title={song.title}
                   size="small"
                 />
-                <div className="min-w-0 flex-1">
+                <div className="col-span-2 min-w-0 flex-1 sm:col-span-1">
                   <p className="font-semibold text-stone-950 sm:truncate">
                     {song.title}
                   </p>
@@ -145,7 +145,7 @@ export function SongResults({ songs, view }: SongResultsProps) {
                 <div className="col-start-2 row-start-2 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
                   <TierBadge tier={song.tier} />
                 </div>
-                <div className="col-start-2 row-start-3 justify-self-start sm:col-start-4 sm:row-start-1 sm:justify-self-end">
+                <div className="col-start-3 row-start-2 justify-self-end sm:col-start-4 sm:row-start-1">
                   <SongAction song={song} />
                 </div>
               </li>
