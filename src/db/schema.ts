@@ -62,6 +62,8 @@ export const appUsers = pgTable(
     spotifyAccountId: text("spotify_account_id"),
     spotifyDisplayName: text("spotify_display_name"),
     spotifyImageUrl: text("spotify_image_url"),
+    /** Encrypted server-side credential used to refresh Spotify user access. */
+    spotifyRefreshTokenCiphertext: text("spotify_refresh_token_ciphertext"),
     songView: text("song_view").default("cards").notNull(),
     role: text("role").default("user").notNull(),
     claimedParticipantId: text("claimed_participant_id").references(

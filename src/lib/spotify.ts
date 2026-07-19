@@ -14,7 +14,11 @@ const spotifyAccountsUrl: string = "https://accounts.spotify.com";
 const spotifyApiUrl: string = "https://api.spotify.com/v1";
 let appAccessToken: { value: string; expiresAt: number } | null = null;
 
-export const spotifyScopes: string[] = ["user-read-private", "user-read-email"];
+export const spotifyScopes: string[] = [
+  "user-read-private",
+  "user-read-email",
+  "playlist-read-private",
+];
 
 function getSpotifyConfig(): SpotifyConfig {
   const { SPOTIFY_CLIENT_ID, SPOTIFY_CLIENT_SECRET, SPOTIFY_REDIRECT_URI } =

@@ -1,0 +1,1 @@
+ALTER TABLE "app_users" ADD COLUMN "spotify_refresh_token_ciphertext" text;

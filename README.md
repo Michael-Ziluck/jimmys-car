@@ -60,7 +60,9 @@ npm run build
 4. Copy the app's client ID and client secret into `.env.local`.
 5. Start the app and open `http://127.0.0.1:3000/spotify` to test the connection.
 
-The application OAuth test currently reads a basic Spotify profile only. It does not persist tokens or make playlist changes.
+Linking Spotify stores the user refresh token encrypted on the server so that
+playlist-aware jobs can obtain short-lived access tokens without asking the user
+to sign in again. Existing links must be linked once more to save this credential.
 
 ## Database
 
@@ -81,7 +83,7 @@ npm run db:import-history
 
 The importer downloads the public workbooks, preserves every dated worksheet snapshot, and selects the newest source when historical workbooks overlap on the same date.
 
-The importer also attempts to resolve songs in the latest edition against the current Jimmy's Car Spotify playlist. Spotify now limits playlist-item reads to the playlist owner or a collaborator, so set `SPOTIFY_REFRESH_TOKEN` to a user refresh token from one of those accounts. Matches are exact and title-normalized; duplicate or ambiguous playlist titles are left unresolved for review.
+The importer also attempts to resolve songs in the latest edition against the current Jimmy's Car Spotify playlist. Spotify limits playlist-item reads to the playlist owner or a collaborator, so one of those accounts must be linked through the application. `SPOTIFY_REFRESH_TOKEN` remains available as a fallback for command-line use. Matches are exact and title-normalized; duplicate or ambiguous playlist titles are left unresolved for review.
 
 ## Local Swagger UI
 
