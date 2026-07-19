@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect } from "react";
 import { ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -28,7 +29,10 @@ export function SpotifyLinkDialog({
   songId,
   title,
   pendingSpotifyTrackId,
+  isAdmin,
+  onSongChanged,
 }: SpotifyLinkDialogProps) {
+  const router: ReturnType<typeof useRouter> = useRouter();
   const action: (
     _previousState: SpotifySuggestionState,
     formData: FormData,
@@ -43,6 +47,14 @@ export function SpotifyLinkDialog({
   const searchUrl: string = `https://open.spotify.com/search/${encodeURIComponent(title)}`;
   const suggestedTrackId: string | null =
     state.spotifyTrackId ?? pendingSpotifyTrackId;
+  const directlyLinked: boolean =
+    isAdmin && state.status === "success" && Boolean(state.spotifyTrackId);
+
+  useEffect(() => {
+    if (!directlyLinked) return;
+    if (onSongChanged) onSongChanged();
+    else router.refresh();
+  }, [directlyLinked, onSongChanged, router]);
 
   return (
     <Dialog>
@@ -71,7 +83,9 @@ export function SpotifyLinkDialog({
               className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-900"
               role="status"
             >
-              A Spotify match is awaiting review.
+              {directlyLinked
+                ? "Spotify match saved."
+                : "A Spotify match is awaiting review."}
             </p>
             <iframe
               src={`https://open.spotify.com/embed/track/${suggestedTrackId}?utm_source=generator`}
@@ -113,7 +127,11 @@ export function SpotifyLinkDialog({
               type="submit"
               disabled={pending || Boolean(suggestedTrackId)}
             >
-              {pending ? "Submitting…" : "Submit for review"}
+              {pending
+                ? "Saving…"
+                : isAdmin
+                  ? "Save Spotify link"
+                  : "Submit for review"}
             </Button>
           </DialogFooter>
         </form>

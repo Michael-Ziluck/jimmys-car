@@ -42,6 +42,7 @@ const copy: Record<SongScope, SongBrowserCopy> = {
 export function SongBrowserPage({
   scope,
   songs,
+  isAdmin,
   query,
   onQueryChange,
   countLabel,
@@ -245,7 +246,12 @@ export function SongBrowserPage({
           ) : null}
           {songs.length ? (
             <div className="mt-4">
-              <SongResults songs={songs} view={view} />
+              <SongResults
+                songs={songs}
+                view={view}
+                isAdmin={isAdmin}
+                onSongChanged={onRetry}
+              />
             </div>
           ) : (
             <Card className="mt-4 rounded-2xl p-10 text-center">

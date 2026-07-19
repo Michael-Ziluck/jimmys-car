@@ -103,6 +103,7 @@ export default function SongHistoryPage() {
     <SongBrowserPage
       scope="history"
       songs={result?.songs ?? null}
+      isAdmin={result?.isAdmin ?? false}
       query={query}
       onQueryChange={updateQuery}
       onSearch={search}

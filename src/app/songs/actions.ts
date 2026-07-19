@@ -2,53 +2,16 @@
 
 import { randomUUID } from "node:crypto";
 
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
 import { songs, spotifyLinkSuggestions } from "@/db/schema";
-import type { SpotifySuggestionState } from "@/types";
-
-function directSpotifyTrackId(value: string): string | undefined {
-  const trimmedValue: string = value.trim();
-  if (/^[A-Za-z0-9]{22}$/.test(trimmedValue)) return trimmedValue;
-
-  const uriMatch: RegExpMatchArray | null = trimmedValue.match(
-    /^spotify:track:([A-Za-z0-9]{22})$/i,
-  );
-  if (uriMatch) return uriMatch[1];
-
-  try {
-    const url: URL = new URL(trimmedValue);
-    const pathMatch: RegExpMatchArray | null = url.pathname.match(
-      /^\/(?:intl-[^/]+\/)?track\/([A-Za-z0-9]{22})(?:\/|$)/i,
-    );
-    if (url.hostname === "open.spotify.com" && pathMatch) {
-      return pathMatch[1];
-    }
-  } catch {
-    // Validation below returns the user-facing message.
-  }
-  return undefined;
-}
-
-async function spotifyTrackId(value: string): Promise<string | undefined> {
-  const directTrackId: string | undefined = directSpotifyTrackId(value);
-  if (directTrackId) return directTrackId;
-
-  try {
-    const url: URL = new URL(value.trim());
-    if (url.hostname !== "spotify.link") return undefined;
-    const response: Response = await fetch(url, {
-      method: "HEAD",
-      redirect: "follow",
-      cache: "no-store",
-    });
-    return directSpotifyTrackId(response.url);
-  } catch {
-    return undefined;
-  }
-}
+import { getCurrentUser } from "@/lib/auth";
+import { normalizeSongTitle } from "@/lib/song-title-matching";
+import { getSpotifyTrackMetadata } from "@/lib/spotify";
+import { parseSpotifyTrackId } from "@/lib/spotify-track-link";
+import type { AppUser, SpotifySuggestionState } from "@/types";
 
 export async function submitSpotifySuggestion(
   songId: string,
@@ -57,7 +20,7 @@ export async function submitSpotifySuggestion(
 ): Promise<SpotifySuggestionState> {
   const submittedValue: string =
     formData.get("spotifyTrack")?.toString().trim() ?? "";
-  const trackId: string | undefined = await spotifyTrackId(submittedValue);
+  const trackId: string | undefined = await parseSpotifyTrackId(submittedValue);
   if (!trackId) {
     return {
       status: "error",
@@ -85,6 +48,71 @@ export async function submitSpotifySuggestion(
       message: "That song has already been linked.",
       spotifyTrackId: null,
     };
+
+  const user: AppUser | null = await getCurrentUser();
+  if (user?.role === "admin") {
+    const [existingTrack] = await db
+      .select({ id: songs.id })
+      .from(songs)
+      .where(eq(songs.spotifyTrackId, trackId))
+      .limit(1);
+    if (existingTrack)
+      return {
+        status: "error",
+        message: "That Spotify track is already linked to another song.",
+        spotifyTrackId: null,
+      };
+
+    let track: Awaited<ReturnType<typeof getSpotifyTrackMetadata>>;
+    try {
+      track = await getSpotifyTrackMetadata(trackId);
+    } catch {
+      return {
+        status: "error",
+        message: "Spotify could not load metadata for that track.",
+        spotifyTrackId: null,
+      };
+    }
+    const normalizedTitle: string = normalizeSongTitle(track.title);
+    const [existingTitle] = await db
+      .select({ id: songs.id })
+      .from(songs)
+      .where(
+        and(eq(songs.normalizedTitle, normalizedTitle), ne(songs.id, songId)),
+      )
+      .limit(1);
+    if (existingTitle)
+      return {
+        status: "error",
+        message: "That Spotify title already belongs to another song.",
+        spotifyTrackId: null,
+      };
+    const linkedSongs: Array<{ id: string }> = await db
+      .update(songs)
+      .set({
+        title: track.title,
+        normalizedTitle,
+        spotifyTrackId: trackId,
+        artistName: track.artistName,
+      })
+      .where(and(eq(songs.id, songId), isNull(songs.spotifyTrackId)))
+      .returning({ id: songs.id });
+    if (!linkedSongs.length)
+      return {
+        status: "error",
+        message: "That song was linked before this save completed.",
+        spotifyTrackId: null,
+      };
+    revalidatePath("/songs");
+    revalidatePath("/songs/history");
+    revalidatePath("/admin/matches");
+    revalidatePath("/admin/matches/history");
+    return {
+      status: "success",
+      message: "Spotify track linked. No review was needed.",
+      spotifyTrackId: trackId,
+    };
+  }
 
   const [pendingSuggestion] = await db
     .select({ spotifyTrackId: spotifyLinkSuggestions.spotifyTrackId })

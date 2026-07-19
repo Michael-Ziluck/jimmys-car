@@ -23,7 +23,7 @@ import {
 import type {
   DisplaySong,
   Song,
-  SongHistoryResult,
+  SongHistoryPageData,
   SongSearchField,
   SongSortField,
   SpotifyLinkSuggestion,
@@ -92,7 +92,7 @@ export async function getSongHistoryPage(
   useRegex = false,
   searchField: SongSearchField = "song",
   sortField: SongSortField = "song",
-): Promise<SongHistoryResult> {
+): Promise<SongHistoryPageData> {
   const db: ReturnType<typeof getDb> = getDb();
   const normalizedQuery: string = query.trim();
   const filter: SQL<unknown> | undefined =

@@ -1,4 +1,6 @@
 import { getSongHistoryPage } from "@/data/song-history";
+import { getCurrentUser } from "@/lib/auth";
+import type { AppUser, SongHistoryResult } from "@/types";
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
@@ -15,14 +17,22 @@ export async function GET(request: Request): Promise<Response> {
     requestedSort === "song" || requestedSort === "artist"
       ? requestedSort
       : "time";
-  return Response.json(
-    await getSongHistoryPage(
+  const [history, user] = await Promise.all([
+    getSongHistoryPage(
       query,
       Number.isFinite(requestedPage) ? requestedPage : 1,
       useRegex,
       searchField,
       sortField,
     ),
-    { headers: { "Cache-Control": "no-store" } },
-  );
+    getCurrentUser(),
+  ]);
+  const currentUser: AppUser | null = user;
+  const result: SongHistoryResult = {
+    ...history,
+    isAdmin: currentUser?.role === "admin",
+  };
+  return Response.json(result, {
+    headers: { "Cache-Control": "no-store" },
+  });
 }

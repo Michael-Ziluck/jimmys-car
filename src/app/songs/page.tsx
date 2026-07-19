@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import type {
   DisplaySong,
   SongFilterResult,
+  SongSearchResult,
   SongSearchField,
   SongSortField,
 } from "@/types";
@@ -17,15 +18,16 @@ export default function SongsPage() {
   const [searchField, setSearchField] = useState<SongSearchField>("song");
   const [sortField, setSortField] = useState<SongSortField>("song");
   const {
-    data: songs,
+    data: result,
     error,
     retry,
-  } = useSongData<DisplaySong[]>(
+  } = useSongData<SongSearchResult>(
     "/api/songs/current",
     "Could not load current songs.",
   );
 
   const searchResult: SongFilterResult = useMemo(() => {
+    const songs: DisplaySong[] | undefined = result?.songs;
     if (!songs) return { songs: null, error: null };
 
     const needle: string = query.trim().toLowerCase();
@@ -72,8 +74,9 @@ export default function SongsPage() {
         error: "That regular expression is not valid yet.",
       };
     }
-  }, [advancedSearch, query, searchField, songs, sortField]);
+  }, [advancedSearch, query, result, searchField, sortField]);
   const results: DisplaySong[] | null = searchResult.songs;
+  const songs: DisplaySong[] | undefined = result?.songs;
 
   const countLabel: string | null =
     songs && results
@@ -84,6 +87,7 @@ export default function SongsPage() {
     <SongBrowserPage
       scope="current"
       songs={results}
+      isAdmin={result?.isAdmin ?? false}
       query={query}
       onQueryChange={setQuery}
       advancedSearch={advancedSearch}
