@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { LayoutGrid, List } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useTheme } from "next-themes";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -13,15 +15,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { storeSongView } from "@/app/songs/song-view-toggle";
 import type {
   AccountData,
   AccountUpdateRequest,
   ApiErrorResponse,
   SongView,
+  ThemePreference,
 } from "@/types";
 
 let accountRequest: Promise<AccountData> | null = null;
+
+function isThemePreference(value: string): value is ThemePreference {
+  return value === "system" || value === "light" || value === "dark";
+}
 
 function fetchAccount(): Promise<AccountData> {
   if (accountRequest) return accountRequest;
@@ -37,6 +45,8 @@ function fetchAccount(): Promise<AccountData> {
 }
 
 export default function AccountPage() {
+  const router: ReturnType<typeof useRouter> = useRouter();
+  const { setTheme } = useTheme();
   const [data, setData] = useState<AccountData | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -88,6 +98,48 @@ export default function AccountPage() {
       )
       .finally(() => {
         if (isPreference) setSavingPreference(false);
+      });
+  };
+
+  const updateThemePreference = (themePreference: ThemePreference): void => {
+    if (!data?.user || savingPreference) return;
+
+    const previousThemePreference: ThemePreference = data.user.themePreference;
+    setSavingPreference(true);
+    setTheme(themePreference);
+    void fetch("/api/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "set-theme-preference",
+        themePreference,
+      } satisfies AccountUpdateRequest),
+    })
+      .then(async (response) => {
+        const result: ApiErrorResponse =
+          (await response.json()) as ApiErrorResponse;
+        if (!response.ok) {
+          setTheme(previousThemePreference);
+          setMessage(result.error ?? "Could not save.");
+          return;
+        }
+        setData((current) =>
+          current?.user
+            ? {
+                ...current,
+                user: { ...current.user, themePreference },
+              }
+            : current,
+        );
+        setMessage("Saved.");
+        router.refresh();
+      })
+      .catch(() => {
+        setTheme(previousThemePreference);
+        setMessage("Could not save. Check your connection and try again.");
+      })
+      .finally(() => {
+        setSavingPreference(false);
       });
   };
 
@@ -253,8 +305,8 @@ export default function AccountPage() {
           <CardHeader>
             <CardTitle id="preferences-heading">Preferences</CardTitle>
             <CardDescription>
-              Choose how songs are displayed across current and historical
-              pages.
+              Choose how songs are displayed and which color theme the app
+              uses.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -318,9 +370,36 @@ export default function AccountPage() {
               aria-live="polite"
             >
               {savingPreference
-                ? "Saving display preference…"
-                : "Your choice applies to both song pages."}
+                ? "Saving preference…"
+                : "Your preferences are saved to your profile."}
             </p>
+            <div className="mt-6 border-t pt-6">
+              <p className="font-semibold text-foreground">Color theme</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                System follows your device setting. Your choice is saved to
+                your profile.
+              </p>
+              <ToggleGroup
+                type="single"
+                value={data.user.themePreference}
+                onValueChange={(value) => {
+                  if (isThemePreference(value)) updateThemePreference(value);
+                }}
+                variant="outline"
+                className="mt-4 grid w-full grid-cols-3 sm:w-fit"
+                aria-label="Color theme"
+              >
+                <ToggleGroupItem value="system" disabled={savingPreference}>
+                  System
+                </ToggleGroupItem>
+                <ToggleGroupItem value="light" disabled={savingPreference}>
+                  Light
+                </ToggleGroupItem>
+                <ToggleGroupItem value="dark" disabled={savingPreference}>
+                  Dark
+                </ToggleGroupItem>
+              </ToggleGroup>
+            </div>
           </CardContent>
         </Card>
       </section>

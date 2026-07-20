@@ -1,0 +1,1 @@
+ALTER TABLE "app_users" ADD COLUMN "theme_preference" text DEFAULT 'system' NOT NULL;

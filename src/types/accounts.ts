@@ -2,6 +2,7 @@ import type { AppUser, Participant, UserSession } from "./database";
 import type { SongView } from "./songs";
 
 export type CurrentUser = AppUser;
+export type ThemePreference = "system" | "light" | "dark";
 
 export interface AccountData {
   user:
@@ -11,7 +12,7 @@ export interface AccountData {
         | "discordDisplayName"
         | "spotifyAccountId"
         | "spotifyDisplayName"
-      > & { songView: SongView })
+      > & { songView: SongView; themePreference: ThemePreference })
     | null;
   claimedParticipant: Pick<Participant, "displayName"> | null;
   claimableParticipants: Array<Pick<Participant, "id" | "displayName">>;
@@ -21,6 +22,7 @@ export interface AccountUpdateRequest {
   action?: string;
   participantId?: string;
   songView?: SongView;
+  themePreference?: ThemePreference;
 }
 
 export interface ApiErrorResponse {

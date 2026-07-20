@@ -1,9 +1,10 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next"
 import { AppNav } from "@/components/app-nav";
 import { SpotifyPlayerProvider } from "@/components/spotify-player-provider";
+import { ThemeProvider } from "@/components/theme-provider";
 import { getCurrentUser } from "@/lib/auth";
 import type { LayoutProps } from "@/types";
 import "./globals.css";
@@ -25,6 +26,14 @@ export const metadata: Metadata = {
   description: "Songs, rankings, and history from Jimmy's Car.",
 };
 
+export const viewport: Viewport = {
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#f9f7f1" },
+    { media: "(prefers-color-scheme: dark)", color: "#2a2420" },
+  ],
+};
+
 export default async function RootLayout({ children }: Readonly<LayoutProps>) {
   const user: Awaited<ReturnType<typeof getCurrentUser>> =
     await getCurrentUser();
@@ -33,18 +42,30 @@ export default async function RootLayout({ children }: Readonly<LayoutProps>) {
     <html
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
       <body className="flex min-h-full flex-col">
-        <a
-          href="#main-content"
-          className="sr-only z-50 rounded-md bg-stone-950 px-4 py-3 text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+        <ThemeProvider
+          attribute="class"
+          defaultTheme={user?.themePreference ?? "system"}
+          enableColorScheme
+          enableSystem
+          disableTransitionOnChange
+          storageKey={
+            user ? `jimmys-car-theme-${user.id}` : "jimmys-car-theme"
+          }
         >
-          Skip to content
-        </a>
-        <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-white/90 backdrop-blur-md">
-          <AppNav isAdmin={user?.role === "admin"} />
-        </header>
-        <SpotifyPlayerProvider>{children}</SpotifyPlayerProvider>
+          <a
+            href="#main-content"
+            className="sr-only z-50 rounded-md bg-stone-950 px-4 py-3 text-white focus:not-sr-only focus:fixed focus:top-3 focus:left-3"
+          >
+            Skip to content
+          </a>
+          <header className="sticky top-0 z-30 border-b border-stone-200/80 bg-white/90 backdrop-blur-md">
+            <AppNav isAdmin={user?.role === "admin"} />
+          </header>
+          <SpotifyPlayerProvider>{children}</SpotifyPlayerProvider>
+        </ThemeProvider>
         <Analytics />
         <SpeedInsights />
       </body>

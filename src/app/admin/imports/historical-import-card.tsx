@@ -245,7 +245,7 @@ export function HistoricalImportCard() {
                   {events.map((event, index) => (
                     <li
                       key={`${event.timestamp}-${index}`}
-                      className="grid grid-cols-[auto_1fr_auto] items-start gap-2 text-sm"
+                      className="grid grid-cols-[auto_1fr_auto] items-center gap-2 text-sm"
                     >
                       <CircleDot
                         className={

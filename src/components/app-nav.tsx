@@ -44,12 +44,12 @@ export function AppNav({ isAdmin }: AppNavProps) {
     >
       <Link
         href="/"
-        className="rounded-md px-2 py-2 font-bold tracking-tight text-stone-950 outline-none transition hover:text-amber-800 focus-visible:ring-3 focus-visible:ring-ring/50"
+        className="rounded-md px-2 py-2 font-bold tracking-tight text-foreground outline-none transition-colors hover:text-brand focus-visible:ring-3 focus-visible:ring-ring/50"
       >
         <span className="sm:hidden">JC</span>
         <span className="hidden sm:inline">Jimmy&apos;s Car</span>
       </Link>
-      <div className="flex items-center gap-1 rounded-full bg-stone-100/80 p-1 text-sm font-medium text-stone-600">
+      <div className="flex items-center gap-1 rounded-full bg-secondary p-1 text-sm font-medium text-muted-foreground">
         {links
           .filter((link) => link.href !== "/admin" || isAdmin)
           .map((link) => {
@@ -60,9 +60,9 @@ export function AppNav({ isAdmin }: AppNavProps) {
                 href={link.href}
                 aria-current={active ? "page" : undefined}
                 className={cn(
-                  "min-h-10 rounded-full px-3 py-2.5 outline-none transition-colors hover:text-stone-950 focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
+                  "min-h-10 rounded-full px-3 py-2.5 outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-4",
                   active &&
-                    "bg-white text-stone-950 shadow-xs ring-1 ring-stone-950/5",
+                    "bg-card text-foreground shadow-xs ring-1 ring-foreground/5 hover:bg-card hover:text-foreground",
                 )}
               >
                 {link.label}

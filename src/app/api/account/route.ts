@@ -7,7 +7,12 @@ import type {
   AccountUpdateRequest,
   AppUser,
   ParticipantIdentity,
+  ThemePreference,
 } from "@/types";
+
+function isThemePreference(value: unknown): value is ThemePreference {
+  return value === "system" || value === "light" || value === "dark";
+}
 
 export async function GET(): Promise<Response> {
   const user: AppUser | null = await getCurrentUser();
@@ -41,6 +46,7 @@ export async function GET(): Promise<Response> {
       spotifyAccountId: user.spotifyAccountId,
       spotifyDisplayName: user.spotifyDisplayName,
       songView: user.songView,
+      themePreference: user.themePreference,
     },
     claimedParticipant: claimedParticipant[0] ?? null,
     claimableParticipants,
@@ -77,6 +83,16 @@ export async function PATCH(request: Request): Promise<Response> {
       .set({ songView: body.songView, updatedAt: new Date() })
       .where(eq(appUsers.id, user.id));
     return Response.json({ ok: true, songView: body.songView });
+  }
+  if (
+    body.action === "set-theme-preference" &&
+    isThemePreference(body.themePreference)
+  ) {
+    await db
+      .update(appUsers)
+      .set({ themePreference: body.themePreference, updatedAt: new Date() })
+      .where(eq(appUsers.id, user.id));
+    return Response.json({ ok: true, themePreference: body.themePreference });
   }
   if (
     body.action === "claim" &&
