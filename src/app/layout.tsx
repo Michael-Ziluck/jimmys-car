@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next"
 import { AppNav } from "@/components/app-nav";
 import { SpotifyPlayerProvider } from "@/components/spotify-player-provider";
 import { getCurrentUser } from "@/lib/auth";
@@ -45,6 +46,7 @@ export default async function RootLayout({ children }: Readonly<LayoutProps>) {
         </header>
         <SpotifyPlayerProvider>{children}</SpotifyPlayerProvider>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
