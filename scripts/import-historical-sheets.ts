@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { loadEnvConfig } from "@next/env";
-import { and, eq, inArray, isNotNull, isNull } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import * as XLSX from "xlsx";
 
 import { getDb } from "@/db";
@@ -638,7 +638,16 @@ export async function runHistoricalImport(
     await db.insert(participants).values(values).onConflictDoNothing();
   report(`Saving ${songRows.length} unique song titles.`, 68);
   for (const values of chunk(songRows))
-    await db.insert(songs).values(values).onConflictDoNothing();
+    await db
+      .insert(songs)
+      .values(values)
+      .onConflictDoUpdate({
+        target: songs.id,
+        set: {
+          title: sql`excluded.title`,
+          normalizedTitle: sql`excluded.normalized_title`,
+        },
+      });
   const resolvedSongRows = songRows.filter((row) => row.spotifyTrackId);
   report(
     `Preserving existing Spotify links and adding ${resolvedSongRows.length} safe exact-title matches.`,
