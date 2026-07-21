@@ -52,17 +52,25 @@ export default async function LinksPage() {
         <h2 id="featured-links" className="sr-only">
           Featured links
         </h2>
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[
             {
               key: "spreadsheet_url",
               title: "Tier spreadsheet",
               description: "View the current list and weekly history.",
+              url: links.get("spreadsheet_url"),
             },
             {
               key: "playlist_url",
               title: "Spotify playlist",
               description: "Listen to the active Jimmy's Car songs.",
+              url: links.get("playlist_url"),
+            },
+            {
+              key: "rules_url",
+              title: "Rules",
+              description: "Review the group rules for the tier list.",
+              url: links.get("rules_url"),
             },
           ].map((item) => (
             <Card key={item.key} className="rounded-2xl">
@@ -71,13 +79,13 @@ export default async function LinksPage() {
                 <CardDescription>{item.description}</CardDescription>
               </CardHeader>
               <CardContent>
-                <Button asChild disabled={!links.get(item.key)}>
+                <Button asChild disabled={!item.url}>
                   <a
-                    href={links.get(item.key) ?? "#"}
+                    href={item.url ?? "#"}
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open <ExternalLink className="size-4" />
+                    Open <ExternalLink data-icon="inline-end" />
                   </a>
                 </Button>
               </CardContent>

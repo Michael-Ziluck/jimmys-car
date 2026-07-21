@@ -50,6 +50,13 @@
       "when": 1784510653544,
       "tag": "0006_outstanding_radioactive_man",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1784592000000,
+      "tag": "0007_rules_link",
+      "breakpoints": true
     }
   ]
 }

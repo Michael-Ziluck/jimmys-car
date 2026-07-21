@@ -278,7 +278,11 @@ export async function assignParticipantSpotifyId(
 
 export async function updateExternalLinks(formData: FormData): Promise<void> {
   await requireAdmin();
-  const values: NewAppSetting[] = ["spreadsheet_url", "playlist_url"].map(
+  const values: NewAppSetting[] = [
+    "spreadsheet_url",
+    "playlist_url",
+    "rules_url",
+  ].map(
     (key) => {
       const value: string = formData.get(key)?.toString().trim() ?? "";
       const url: URL = new URL(value);

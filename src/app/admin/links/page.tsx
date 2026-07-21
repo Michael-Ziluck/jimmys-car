@@ -54,10 +54,10 @@ export default async function AdminLinksPage() {
           <CardHeader>
             <CardTitle>Featured links</CardTitle>
             <CardDescription>
-              These two destinations always appear as prominent cards.
+              These three destinations always appear as prominent cards.
             </CardDescription>
           </CardHeader>
-          <CardContent className="grid gap-4 sm:grid-cols-2">
+          <CardContent className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             <div className="grid gap-2">
               <Label htmlFor="spreadsheet-url">Spreadsheet URL</Label>
               <Input
@@ -76,6 +76,16 @@ export default async function AdminLinksPage() {
                 type="url"
                 required
                 defaultValue={settings.get("playlist_url")}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="rules-url">Rules URL</Label>
+              <Input
+                id="rules-url"
+                name="rules_url"
+                type="url"
+                required
+                defaultValue={settings.get("rules_url")}
               />
             </div>
           </CardContent>
