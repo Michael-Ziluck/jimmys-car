@@ -1,6 +1,6 @@
 "use server";
 
-import { and, eq, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { getDb } from "@/db";
@@ -8,8 +8,10 @@ import {
   appSettings,
   appUsers,
   participants,
+  songAppearances,
   songs,
   spotifyLinkSuggestions,
+  weeklyEditions,
 } from "@/db/schema";
 import { getCurrentUser } from "@/lib/auth";
 import { normalizeSongTitle } from "@/lib/song-title-matching";
@@ -20,8 +22,10 @@ import type {
   ExtraLink,
   NewAppSetting,
   Song,
+  SongEditState,
   SpotifyEditState,
   SpotifyTrackPreview,
+  Tier,
 } from "@/types";
 
 async function requireAdmin(): Promise<AppUser> {
@@ -91,6 +95,96 @@ export async function approveSpotifySuggestion(
   revalidatePath("/admin/matches/history");
   revalidatePath("/songs");
   revalidatePath("/songs/history");
+}
+
+const TIERS: Tier[] = ["S", "A", "B", "C", "D", "F"];
+
+export async function updateSongDetails(
+  songId: string,
+  _previousState: SongEditState,
+  formData: FormData,
+): Promise<SongEditState> {
+  await requireAdmin();
+  const title: string = formData.get("title")?.toString().trim() ?? "";
+  const submittedTier: string = formData.get("tier")?.toString() ?? "";
+  const ownerId: string = formData.get("ownerId")?.toString() ?? "";
+  const tier: Tier | undefined = TIERS.find(
+    (candidate) => candidate === submittedTier,
+  );
+
+  if (!title) return { status: "error", message: "Song name is required." };
+  if (!tier) return { status: "error", message: "Choose a valid rating." };
+  if (!ownerId) return { status: "error", message: "Choose an owner." };
+
+  const db: ReturnType<typeof getDb> = getDb();
+  const [song] = await db
+    .select({ id: songs.id, normalizedTitle: songs.normalizedTitle })
+    .from(songs)
+    .where(eq(songs.id, songId))
+    .limit(1);
+  if (!song) return { status: "error", message: "That song no longer exists." };
+
+  const normalizedTitle: string = normalizeSongTitle(title);
+  const [existingTitle] = await db
+    .select({ id: songs.id })
+    .from(songs)
+    .where(and(eq(songs.normalizedTitle, normalizedTitle), ne(songs.id, songId)))
+    .limit(1);
+  if (existingTitle)
+    return {
+      status: "error",
+      message: "A different song already uses that name.",
+    };
+
+  const [owner] = await db
+    .select({ id: participants.id })
+    .from(participants)
+    .where(eq(participants.id, ownerId))
+    .limit(1);
+  if (!owner) return { status: "error", message: "Choose a valid owner." };
+
+  const [latestEdition] = await db
+    .select({ id: weeklyEditions.id })
+    .from(weeklyEditions)
+    .where(eq(weeklyEditions.isCanonical, true))
+    .orderBy(desc(weeklyEditions.editionDate))
+    .limit(1);
+  if (!latestEdition)
+    return { status: "error", message: "There is no current spreadsheet edition." };
+
+  const [placement] = await db
+    .select({ songId: songAppearances.songId })
+    .from(songAppearances)
+    .where(
+      and(
+        eq(songAppearances.weeklyEditionId, latestEdition.id),
+        eq(songAppearances.songId, songId),
+      ),
+    )
+    .limit(1);
+  if (!placement)
+    return {
+      status: "error",
+      message: "Only songs in the current spreadsheet edition can be edited.",
+    };
+
+  await db
+    .update(songs)
+    .set({ title, normalizedTitle })
+    .where(eq(songs.id, songId));
+  await db
+    .update(songAppearances)
+    .set({ participantId: ownerId, tier })
+    .where(
+      and(
+        eq(songAppearances.weeklyEditionId, latestEdition.id),
+        eq(songAppearances.songId, songId),
+      ),
+    );
+
+  revalidatePath("/songs");
+  revalidatePath("/songs/history");
+  return { status: "success", message: "Song updated." };
 }
 
 async function songEditPreview(

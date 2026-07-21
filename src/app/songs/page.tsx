@@ -88,6 +88,7 @@ export default function SongsPage() {
       scope="current"
       songs={results}
       isAdmin={result?.isAdmin ?? false}
+      owners={result?.owners ?? []}
       query={query}
       onQueryChange={setQuery}
       advancedSearch={advancedSearch}

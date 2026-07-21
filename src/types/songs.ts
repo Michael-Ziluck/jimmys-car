@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { Participant, Song, Tier } from "./database";
+import type { ParticipantIdentity } from "./participants";
 
 export type SongView = "cards" | "list";
 export type SongScope = "current" | "history";
@@ -21,10 +22,26 @@ export interface SongHistoryEntry {
   owner: Pick<Participant, "id" | "displayName">;
 }
 
+export interface SongTierStint {
+  enteredAt: string;
+  lastRatedAt: string;
+  leftAt: string | null;
+  editionCount: number;
+}
+
 export interface SongDetail extends SongSummary {
   firstAppearanceDate: string | null;
   lastAppearanceDate: string | null;
+  appearanceCount: number;
+  isActive: boolean;
   history: SongHistoryEntry[];
+  stints: SongTierStint[];
+}
+
+export interface SongDetailResult {
+  song: SongDetail;
+  isAdmin: boolean;
+  owners: ParticipantIdentity[];
 }
 
 export interface DisplaySong {
@@ -34,6 +51,7 @@ export interface DisplaySong {
   spotifyTrackId: Song["spotifyTrackId"];
   pendingSpotifyTrackId: string | null;
   tier: Tier | null;
+  ownerId: Participant["id"] | null;
   owner: Participant["displayName"] | null;
   lastAppearanceDate: string | null;
 }
@@ -41,6 +59,7 @@ export interface DisplaySong {
 export interface SongSearchResult {
   songs: DisplaySong[];
   isAdmin: boolean;
+  owners: ParticipantIdentity[];
 }
 
 export interface SongFilterResult {
@@ -67,12 +86,14 @@ export interface SongHistoryPageData {
 
 export interface SongHistoryResult extends SongHistoryPageData {
   isAdmin: boolean;
+  owners: ParticipantIdentity[];
 }
 
 export interface SongBrowserPageProps {
   scope: SongScope;
   songs: DisplaySong[] | null;
   isAdmin: boolean;
+  owners: ParticipantIdentity[];
   query: string;
   onQueryChange: (query: string) => void;
   countLabel: string | null;
@@ -137,6 +158,7 @@ export interface SongResultsProps {
   songs: DisplaySong[];
   view: SongView;
   isAdmin: boolean;
+  owners: ParticipantIdentity[];
   onSongChanged: () => void;
 }
 
@@ -152,6 +174,7 @@ export interface OwnerLabelProps {
 export interface SongActionProps {
   song: DisplaySong;
   isAdmin: boolean;
+  owners: ParticipantIdentity[];
   onSongChanged: () => void;
 }
 
@@ -176,6 +199,17 @@ export interface SpotifyTrackPreview {
   spotifyTrackId: string;
   title: string;
   artistName: string | null;
+}
+
+export interface SongEditState {
+  status: "idle" | "success" | "error";
+  message: string;
+}
+
+export interface SongEditDialogProps {
+  song: DisplaySong;
+  owners: ParticipantIdentity[];
+  onSongChanged: () => void;
 }
 
 export interface SpotifyEditState {

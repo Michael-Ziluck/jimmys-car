@@ -9,12 +9,12 @@ import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
 import { SpotifyLinkDialog } from "./spotify-link-dialog";
 
 const tierStyles: Record<Tier, string> = {
-  S: "bg-rose-100 text-rose-800",
-  A: "bg-orange-100 text-orange-800",
-  B: "bg-amber-100 text-amber-800",
-  C: "bg-lime-100 text-lime-800",
-  D: "bg-sky-100 text-sky-800",
-  F: "bg-violet-100 text-violet-800",
+  S: "bg-violet-100 text-violet-800",
+  A: "bg-sky-100 text-sky-800",
+  B: "bg-lime-100 text-lime-800",
+  C: "bg-amber-100 text-amber-800",
+  D: "bg-orange-100 text-orange-800",
+  F: "bg-rose-100 text-rose-800",
 };
 const ignoreSongChange = (): void => {};
 

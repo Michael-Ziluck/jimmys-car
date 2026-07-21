@@ -43,6 +43,7 @@ export function SongBrowserPage({
   scope,
   songs,
   isAdmin,
+  owners,
   query,
   onQueryChange,
   countLabel,
@@ -250,6 +251,7 @@ export function SongBrowserPage({
                 songs={songs}
                 view={view}
                 isAdmin={isAdmin}
+                owners={owners}
                 onSongChanged={onRetry}
               />
             </div>

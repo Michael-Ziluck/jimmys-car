@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { ExternalLink, Pencil } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useActionState, useState, useTransition } from "react";
 
 import {
@@ -16,22 +16,10 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+import { DialogFooter } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import type {
-  SpotifyEditDialogProps,
-  SpotifyEditState,
-  SpotifyTrackPreview,
-} from "@/types";
+import type { DisplaySong, SpotifyEditState, SpotifyTrackPreview } from "@/types";
 
 const initialState: SpotifyEditState = {
   status: "idle",
@@ -80,10 +68,13 @@ function TrackPreview({
   );
 }
 
-function SpotifyEditForm({
+export function SpotifyEditForm({
   song,
   onSaved,
-}: SpotifyEditDialogProps & { onSaved: () => void }) {
+}: {
+  song: DisplaySong;
+  onSaved: () => void;
+}) {
   const previewAction: (
     previousState: SpotifyEditState,
     formData: FormData,
@@ -167,46 +158,5 @@ function SpotifyEditForm({
         </Button>
       </DialogFooter>
     </form>
-  );
-}
-
-export function SpotifyEditDialog({
-  song,
-  onSongChanged,
-}: SpotifyEditDialogProps) {
-  const [open, setOpen] = useState(false);
-  const [formKey, setFormKey] = useState(0);
-  const setDialogOpen = (nextOpen: boolean): void => {
-    setOpen(nextOpen);
-    if (nextOpen) setFormKey((value) => value + 1);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={setDialogOpen}>
-      <DialogTrigger asChild>
-        <Button variant="ghost" size="sm" title={`Edit ${song.title}`}>
-          <Pencil data-icon="inline-start" />
-          Edit
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="sm:max-w-2xl">
-        <DialogHeader>
-          <DialogTitle>Update Spotify match</DialogTitle>
-          <DialogDescription>
-            Only the Spotify track can be changed here. You will review all
-            metadata changes before saving.
-          </DialogDescription>
-        </DialogHeader>
-        <SpotifyEditForm
-          key={formKey}
-          song={song}
-          onSongChanged={onSongChanged}
-          onSaved={() => {
-            onSongChanged();
-            setOpen(false);
-          }}
-        />
-      </DialogContent>
-    </Dialog>
   );
 }

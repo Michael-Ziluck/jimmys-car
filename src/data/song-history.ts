@@ -2,6 +2,7 @@ import "server-only";
 
 import {
   and,
+  asc,
   count,
   desc,
   eq,
@@ -22,7 +23,10 @@ import {
 } from "@/db/schema";
 import type {
   DisplaySong,
+  ParticipantIdentity,
   Song,
+  SongDetail,
+  SongHistoryEntry,
   SongHistoryPageData,
   SongSearchField,
   SongSortField,
@@ -57,6 +61,7 @@ async function getActiveSongs(
       spotifyTrackId: songs.spotifyTrackId,
       pendingSpotifyTrackId: spotifyLinkSuggestions.spotifyTrackId,
       tier: songAppearances.tier,
+      ownerId: participants.id,
       owner: participants.displayName,
       lastAppearanceDate: weeklyEditions.editionDate,
     })
@@ -84,6 +89,96 @@ async function getActiveSongs(
 export async function getCurrentSongs(): Promise<DisplaySong[]> {
   const latestEditionId: string | undefined = await getLatestEditionId();
   return latestEditionId ? getActiveSongs(latestEditionId) : [];
+}
+
+export async function getParticipantOptions(): Promise<ParticipantIdentity[]> {
+  return getDb()
+    .select({ id: participants.id, displayName: participants.displayName })
+    .from(participants)
+    .orderBy(participants.displayName);
+}
+
+export async function getSongDetail(
+  songId: string,
+): Promise<SongDetail | null> {
+  const db: ReturnType<typeof getDb> = getDb();
+  const [song] = await db
+    .select({
+      id: songs.id,
+      title: songs.title,
+      artistName: songs.artistName,
+      spotifyTrackId: songs.spotifyTrackId,
+    })
+    .from(songs)
+    .where(eq(songs.id, songId))
+    .limit(1);
+  if (!song) return null;
+
+  const [appearanceRows, canonicalEditions] = await Promise.all([
+    db
+      .select({
+        editionDate: weeklyEditions.editionDate,
+        tier: songAppearances.tier,
+        ownerId: participants.id,
+        ownerName: participants.displayName,
+      })
+      .from(songAppearances)
+      .innerJoin(songs, eq(songAppearances.songId, songs.id))
+      .innerJoin(
+        weeklyEditions,
+        and(
+          eq(songAppearances.weeklyEditionId, weeklyEditions.id),
+          eq(weeklyEditions.isCanonical, true),
+        ),
+      )
+      .innerJoin(participants, eq(songAppearances.participantId, participants.id))
+      .where(eq(songs.id, songId))
+      .orderBy(asc(weeklyEditions.editionDate), asc(participants.displayName)),
+    db
+      .select({ editionDate: weeklyEditions.editionDate })
+      .from(weeklyEditions)
+      .where(eq(weeklyEditions.isCanonical, true))
+      .orderBy(asc(weeklyEditions.editionDate)),
+  ]);
+  const history: SongHistoryEntry[] = appearanceRows.map((appearance) => ({
+    editionDate: appearance.editionDate,
+    tier: appearance.tier,
+    owner: { id: appearance.ownerId, displayName: appearance.ownerName },
+  }));
+  const datesWithAppearance: Set<string> = new Set(
+    history.map((appearance) => appearance.editionDate),
+  );
+  const stints: SongDetail["stints"] = [];
+  let enteredAt: string | null = null;
+  let lastRatedAt: string | null = null;
+  let editionCount: number = 0;
+
+  for (const { editionDate } of canonicalEditions) {
+    if (datesWithAppearance.has(editionDate)) {
+      enteredAt ??= editionDate;
+      lastRatedAt = editionDate;
+      editionCount += 1;
+      continue;
+    }
+    if (enteredAt && lastRatedAt) {
+      stints.push({ enteredAt, lastRatedAt, leftAt: editionDate, editionCount });
+      enteredAt = null;
+      lastRatedAt = null;
+      editionCount = 0;
+    }
+  }
+  if (enteredAt && lastRatedAt)
+    stints.push({ enteredAt, lastRatedAt, leftAt: null, editionCount });
+
+  return {
+    ...song,
+    isActive: stints.at(-1)?.leftAt === null,
+    firstAppearanceDate: history[0]?.editionDate ?? null,
+    lastAppearanceDate: history.at(-1)?.editionDate ?? null,
+    appearanceCount: datesWithAppearance.size,
+    history,
+    stints,
+  };
 }
 
 export async function getSongHistoryPage(
@@ -220,6 +315,7 @@ export async function getSongHistoryPage(
         pendingSpotifyTrackId:
           active?.pendingSpotifyTrackId ?? pendingBySongId.get(song.id) ?? null,
         tier: active?.tier ?? null,
+        ownerId: active?.ownerId ?? null,
         owner: active?.owner ?? null,
       };
     }),

@@ -1,10 +1,7 @@
 "use client";
 
-import Image from "next/image";
-import { Music2 } from "lucide-react";
-import { useState } from "react";
+import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardAction,
@@ -13,106 +10,39 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type {
-  OwnerLabelProps,
   SongActionProps,
   SongResultsProps,
-  Tier,
-  TierBadgeProps,
 } from "@/types";
 import { SpotifyEmbedDialog } from "./spotify-embed-dialog";
-import { SpotifyEditDialog } from "./spotify-edit-dialog";
+import { SongEditDialog } from "./song-edit-dialog";
 import { SpotifyLinkDialog } from "./spotify-link-dialog";
+import { OwnerLabel, SongArtwork, TierBadge, tierStyles } from "./song-presentation";
 
-const tierStyles: Record<Tier, string> = {
-  S: "bg-rose-100 text-rose-800",
-  A: "bg-orange-100 text-orange-800",
-  B: "bg-amber-100 text-amber-800",
-  C: "bg-lime-100 text-lime-800",
-  D: "bg-sky-100 text-sky-800",
-  F: "bg-violet-100 text-violet-800",
-};
-
-function TierBadge({ tier, tall = false }: TierBadgeProps) {
+function SongAction({ song, isAdmin, owners, onSongChanged }: SongActionProps) {
   return (
-    <div
-      className={`flex shrink-0 ${tall ? "flex-col items-end gap-1" : "items-center"}`}
-      title={tier ? `Current rank: ${tier} tier` : "Past song"}
-    >
-      {tall ? (
-        <span className="text-[0.625rem] font-semibold tracking-[0.12em] text-stone-400 uppercase">
-          {tier ? "Current rank" : "Status"}
-        </span>
-      ) : null}
-      <Badge
-        variant={tier ? "default" : "outline"}
-        className={`h-6 rounded-full px-2.5 font-mono text-[0.6875rem] font-bold ${tier ? tierStyles[tier] : "text-stone-500"}`}
-      >
-        {tier ? `${tier} tier` : "Past"}
-      </Badge>
-    </div>
-  );
-}
-
-function SongArtwork({
-  trackId,
-  title,
-  size,
-}: {
-  trackId: string | null;
-  title: string;
-  size: "small" | "large";
-}) {
-  const [failed, setFailed] = useState(false);
-  const dimensions: string = size === "large" ? "size-20" : "size-12";
-
-  return (
-    <div
-      className={`relative ${dimensions} shrink-0 overflow-hidden rounded-xl bg-stone-100 ring-1 ring-stone-950/5`}
-    >
-      {trackId && !failed ? (
-        <Image
-          src={`/api/spotify/art/${trackId}`}
-          alt={`Album art for ${title}`}
-          fill
-          sizes={size === "large" ? "80px" : "48px"}
-          className="object-cover"
-          onError={() => setFailed(true)}
+    <div className="flex items-center justify-end gap-1">
+      {song.spotifyTrackId ? (
+        <SpotifyEmbedDialog
+          trackId={song.spotifyTrackId}
+          songTitle={song.title}
         />
       ) : (
-        <span className="flex size-full items-center justify-center bg-linear-to-br from-amber-50 to-stone-100 text-amber-700/55">
-          <Music2 className={size === "large" ? "size-7" : "size-4"} />
-          <span className="sr-only">No album art available</span>
-        </span>
+        <SpotifyLinkDialog
+          songId={song.id}
+          title={song.title}
+          pendingSpotifyTrackId={song.pendingSpotifyTrackId}
+          isAdmin={isAdmin}
+          onSongChanged={onSongChanged}
+        />
       )}
-    </div>
-  );
-}
-
-function OwnerLabel({ owner }: OwnerLabelProps) {
-  return (
-    <span className="inline-flex min-w-0 items-center gap-1.5 font-medium text-amber-900">
-      <span className="size-1.5 rounded-full bg-amber-500" aria-hidden="true" />
-      Held by {owner}
-    </span>
-  );
-}
-
-function SongAction({ song, isAdmin, onSongChanged }: SongActionProps) {
-  return song.spotifyTrackId ? (
-    <div className="flex items-center justify-end gap-1">
-      <SpotifyEmbedDialog trackId={song.spotifyTrackId} songTitle={song.title} />
-      {isAdmin ? (
-        <SpotifyEditDialog song={song} onSongChanged={onSongChanged} />
+      {isAdmin && song.tier ? (
+        <SongEditDialog
+          song={song}
+          owners={owners}
+          onSongChanged={onSongChanged}
+        />
       ) : null}
     </div>
-  ) : (
-    <SpotifyLinkDialog
-      songId={song.id}
-      title={song.title}
-      pendingSpotifyTrackId={song.pendingSpotifyTrackId}
-      isAdmin={isAdmin}
-      onSongChanged={onSongChanged}
-    />
   );
 }
 
@@ -120,6 +50,7 @@ export function SongResults({
   songs,
   view,
   isAdmin,
+  owners,
   onSongChanged,
 }: SongResultsProps) {
   if (view === "list") {
@@ -130,8 +61,13 @@ export function SongResults({
             {songs.map((song) => (
               <li
                 key={song.id}
-                className="group grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto] sm:px-5"
+                className="group relative grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-3 p-4 transition-colors hover:bg-amber-50/40 sm:grid-cols-[3rem_minmax(0,1fr)_auto_auto] sm:px-5"
               >
+                <Link
+                  href={`/songs/${song.id}`}
+                  className="absolute inset-0 rounded-md focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+                  aria-label={`View history for ${song.title}`}
+                />
                 <SongArtwork
                   trackId={song.spotifyTrackId}
                   title={song.title}
@@ -158,10 +94,11 @@ export function SongResults({
                 <div className="col-start-2 row-start-2 sm:col-start-3 sm:row-start-1 sm:justify-self-end">
                   <TierBadge tier={song.tier} />
                 </div>
-                <div className="col-start-3 row-start-2 justify-self-end sm:col-start-4 sm:row-start-1">
+                <div className="relative z-10 col-start-3 row-start-2 justify-self-end sm:col-start-4 sm:row-start-1">
                   <SongAction
                     song={song}
                     isAdmin={isAdmin}
+                    owners={owners}
                     onSongChanged={onSongChanged}
                   />
                 </div>
@@ -180,6 +117,11 @@ export function SongResults({
           key={song.id}
           className="group relative min-h-44 justify-between overflow-hidden rounded-2xl transition-[border-color,box-shadow,transform] duration-200 hover:-translate-y-0.5 hover:border-amber-300 hover:shadow-md"
         >
+          <Link
+            href={`/songs/${song.id}`}
+            className="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring"
+            aria-label={`View history for ${song.title}`}
+          />
           <span
             className={`absolute inset-x-0 top-0 h-1 ${song.tier ? tierStyles[song.tier].split(" ")[0] : "bg-stone-200"}`}
             aria-hidden="true"
@@ -200,17 +142,20 @@ export function SongResults({
                 </p>
               </div>
             </div>
-            <CardAction>
+            <CardAction className="relative z-10">
               <TierBadge tier={song.tier} tall />
             </CardAction>
           </CardHeader>
           <CardContent className="flex flex-1 flex-col justify-between gap-5">
             {song.owner ? <OwnerLabel owner={song.owner} /> : <span />}
-            <SongAction
-              song={song}
-              isAdmin={isAdmin}
-              onSongChanged={onSongChanged}
-            />
+            <div className="relative z-10">
+              <SongAction
+                song={song}
+                isAdmin={isAdmin}
+                owners={owners}
+                onSongChanged={onSongChanged}
+              />
+            </div>
           </CardContent>
         </Card>
       ))}

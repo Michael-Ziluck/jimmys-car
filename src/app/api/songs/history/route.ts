@@ -1,4 +1,7 @@
-import { getSongHistoryPage } from "@/data/song-history";
+import {
+  getParticipantOptions,
+  getSongHistoryPage,
+} from "@/data/song-history";
 import { getCurrentUser } from "@/lib/auth";
 import type { AppUser, SongHistoryResult } from "@/types";
 
@@ -31,6 +34,8 @@ export async function GET(request: Request): Promise<Response> {
   const result: SongHistoryResult = {
     ...history,
     isAdmin: currentUser?.role === "admin",
+    owners:
+      currentUser?.role === "admin" ? await getParticipantOptions() : [],
   };
   return Response.json(result, {
     headers: { "Cache-Control": "no-store" },

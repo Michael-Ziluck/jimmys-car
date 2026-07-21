@@ -104,6 +104,7 @@ export default function SongHistoryPage() {
       scope="history"
       songs={result?.songs ?? null}
       isAdmin={result?.isAdmin ?? false}
+      owners={result?.owners ?? []}
       query={query}
       onQueryChange={updateQuery}
       onSearch={search}
